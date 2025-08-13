@@ -1,0 +1,56 @@
+.layout {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  width: 100%;
+}
+
+.modalBox {
+  width: 400px;
+  border-radius: 8px;
+  padding: 16px;
+  background-color: #fff;
+}
+
+.layoutContainer {
+  display: flex;
+  flex-direction: row;
+  /* justify-content: flex-end; */
+  justify-content: space-between;
+  /* align-items: center; */
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.nameContainer {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.userName {
+  font-weight: bold;
+  font-size: 1.2rem !important;
+}
+
+.themeButton {
+  /* padding: 8px 8px 5px 8px !important; */
+}
+
+.editButton {
+  transition: color 0.3s ease !important;
+}
+
+.editButton:hover {
+  color: #007bff;
+}
+
+.editButton:focus {
+  outline: none;
+}
+
+.editButton:focus-within {
+  outline: none;
+}

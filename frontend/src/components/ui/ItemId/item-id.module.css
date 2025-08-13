@@ -1,0 +1,21 @@
+.itemId {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 40px;
+  min-height: 40px;
+  border-radius: 10px;
+  color: #fff;
+  font-weight: 300;
+}
+
+.pending {
+  background-color: #fdedb9;
+  color: #000;
+  font-weight: 700;
+}
+
+.ready {
+  background-color: #066a69;
+  color: #fff;
+}

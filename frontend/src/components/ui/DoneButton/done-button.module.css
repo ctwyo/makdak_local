@@ -1,0 +1,11 @@
+.itemDone:focus {
+  outline: none;
+}
+
+.itemDone:focus-within {
+  outline: none;
+}
+
+.itemDone:hover {
+  animation: colorDoneButton 0.2s ease-in-out forwards;
+}

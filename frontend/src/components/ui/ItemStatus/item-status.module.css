@@ -1,0 +1,30 @@
+.itemStatus {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  /* gap: 10px; */
+  height: 30px;
+  border-radius: 10px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.status-ready {
+  background-color: #caffe7;
+}
+
+.status-pending {
+  background-color: #fdedbb;
+}
+
+.itemDone:focus {
+  outline: none;
+}
+
+.itemDone:focus-within {
+  outline: none;
+}
+
+.itemDone:hover {
+  animation: colorDoneButton 0.2s ease-in-out forwards;
+}

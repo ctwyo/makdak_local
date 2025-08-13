@@ -1,0 +1,23 @@
+.themeButton {
+  display: flex !important;
+  /* align-items: flex-end !important; */
+  width: 40px;
+  height: 40px;
+  transition: color 0.3s ease !important;
+}
+
+.themeButton:hover {
+  background-color: red;
+}
+
+.themeButton:focus {
+  outline: none;
+}
+
+.themeButton:focus-within {
+  outline: none;
+}
+
+.themeButton:hover {
+  color: goldenrod;
+}

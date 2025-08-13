@@ -1,0 +1,30 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "mongoose": "^8.8.4",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
+    "telegraf": "^4.16.3",
+    "uuid": "^11.0.3",
+    "ws": "github:websockets/ws"
+  },
+  "devDependencies": {
+    "eslint": "^9.17.0",
+    "globals": "^15.13.0",
+    "prettier": "3.4.2"
+  }
+}

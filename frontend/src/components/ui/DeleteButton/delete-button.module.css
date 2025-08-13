@@ -1,0 +1,11 @@
+.itemDeleteButton:hover {
+  animation: colorDeleteButton 0.2s ease-in-out forwards;
+}
+
+.itemDeleteButton:focus {
+  outline: none;
+}
+
+.itemDeleteButton:focus-within {
+  outline: none;
+}
