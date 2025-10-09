@@ -7,6 +7,9 @@ import {
   updateOrderTextApi,
 } from "./ordersThunks";
 
+const isActiveOrder = (order) =>
+  order?.status === "pending" || order?.status === "ready";
+
 const initialState = {
   orders: [], // изменено на ordersList
   loading: false,
@@ -18,10 +21,12 @@ const ordersSlice = createSlice({
   initialState,
   reducers: {
     setOrders: (state, action) => {
-      state.orders = action.payload;
+      state.orders = action.payload.filter(isActiveOrder);
     },
     addOrderToState: (state, action) => {
-      state.orders.push(action.payload);
+      if (isActiveOrder(action.payload)) {
+        state.orders.push(action.payload);
+      }
     },
     removeOrderFromState: (state, action) => {
       const id = action.payload;
@@ -33,7 +38,11 @@ const ordersSlice = createSlice({
         (order) => order.id === updatedOrder.id
       );
       if (index !== -1) {
-        state.orders[index] = updatedOrder;
+        if (isActiveOrder(updatedOrder)) {
+          state.orders[index] = updatedOrder;
+        } else {
+          state.orders.splice(index, 1);
+        }
       }
     },
     setLoading: (state, action) => {
@@ -57,7 +66,7 @@ const ordersSlice = createSlice({
       })
       .addCase(fetchOrders.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders = action.payload;
+        state.orders = action.payload.filter(isActiveOrder);
       })
       .addCase(fetchOrders.rejected, (state, action) => {
         state.loading = false;
@@ -69,7 +78,9 @@ const ordersSlice = createSlice({
       })
       .addCase(addOrderApi.fulfilled, (state, action) => {
         state.loading = false;
-        state.orders.push(action.payload);
+        if (isActiveOrder(action.payload)) {
+          state.orders.push(action.payload);
+        }
       })
       .addCase(addOrderApi.rejected, (state, action) => {
         state.loading = false;
@@ -98,7 +109,11 @@ const ordersSlice = createSlice({
           (order) => order._id === action.payload._id
         );
         if (index !== -1) {
-          state.orders[index] = action.payload;
+          if (isActiveOrder(action.payload)) {
+            state.orders[index] = action.payload;
+          } else {
+            state.orders.splice(index, 1);
+          }
         }
       })
       .addCase(updateOrderStatusApi.rejected, (state, action) => {

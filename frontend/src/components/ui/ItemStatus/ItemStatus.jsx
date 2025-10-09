@@ -1,10 +1,12 @@
 import styles from "./item-status.module.css";
 import DoneIcon from "@mui/icons-material/Done";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
+import DoneAllIcon from "@mui/icons-material/DoneAll";
 
 const statusComponents = {
   ready: DoneIcon,
   pending: PendingActionsIcon,
+  done: DoneAllIcon,
 };
 
 const ItemStatus = ({ status }) => {

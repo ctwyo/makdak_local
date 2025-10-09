@@ -17,6 +17,10 @@
   background-color: #fdedbb;
 }
 
+.status-done {
+  background-color: #e0e0e0;
+}
+
 .itemDone:focus {
   outline: none;
 }

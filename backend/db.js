@@ -64,7 +64,7 @@ const orderSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["pending", "ready"],
+    enum: ["pending", "ready", "done"],
     default: "pending",
   },
   text: {
@@ -76,10 +76,6 @@ const orderSchema = new mongoose.Schema({
     required: false,
   },
   lastName: {
-    type: String,
-    required: false,
-  },
-  userName: {
     type: String,
     required: false,
   },
@@ -98,19 +94,14 @@ const orderSchema = new mongoose.Schema({
     default: "",
   },
   messageId: {
-    type: String,
+    type: Number,
     required: false,
-    default: "",
+    default: 0,
   },
   fromTelegram: {
     type: Boolean,
     required: false,
     default: false,
-  },
-  userId: {
-    type: String,
-    required: false,
-    default: "",
   },
   chatTitle: {
     type: String,
@@ -125,39 +116,6 @@ const orderSchema = new mongoose.Schema({
 });
 
 export const Order = mongoose.model("Order", orderSchema);
-
-export const userSchema = new mongoose.Schema({
-  userId: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  firstName: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  lastName: {
-    type: String,
-    required: false,
-  },
-  fullName: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  userName: {
-    type: String,
-    required: false,
-  },
-  role: {
-    type: String,
-    required: false,
-    default: "courier" || "admin",
-  },
-});
-
-export const User = mongoose.model("User", userSchema);
 
 export const createOrGetChat = async (chatId, chatTitle, topicId) => {
   if (!chatTitle) {
@@ -178,83 +136,26 @@ export const createOrGetChat = async (chatId, chatTitle, topicId) => {
   }
 };
 
-//создание юзера
-export const createOrGetUser = async (userData) => {
-  const { userId, firstName, lastName, fullName, userName } = userData;
-
-  try {
-    let existngUser = await User.findOne({ userId });
-    if (!existngUser) {
-      existngUser = new User({
-        userId,
-        firstName,
-        lastName,
-        fullName,
-        userName,
-      });
-      await existngUser.save();
-    } else if (!existngUser.userName && userName) {
-      existngUser.userName = userName;
-      await existngUser.save();
-    }
-    return existngUser;
-  } catch (error) {
-    console.error("Failed to create or get user:", error);
-    throw error;
-  }
-};
-
-//все юзеры
-export const getAllusers = async () => {
-  try {
-    const users = await User.find();
-    return users;
-  } catch (err) {
-    console.error("Failed to retrieve users in db", err);
-    throw err;
-  }
-};
-
-// Найти пользователя по userId
-export const getUserById = async (userId) => {
-  try {
-    const user = await User.findOne({ userId });
-    if (!user) {
-      throw new Error(`User with userId ${userId} not found`);
-    }
-    return user;
-  } catch (err) {
-    console.error("Failed to retrieve user by userId in db", err);
-    throw err;
-  }
-};
-
 export const createOrder = async (orderData) => {
   try {
     const {
       chatId,
       chatTitle,
       topicId,
-      userId,
       firstName,
       lastName,
       fromTelegram,
       ...rest
     } = orderData;
     await createOrGetChat(chatId, chatTitle, topicId);
-    // const user = await createOrGetUser(userId, firstName, lastName);
-    // if (fromTelegram) await createOrGetUser(userId, firstName, lastName);
-    if (fromTelegram) await createOrGetUser(orderData);
-
     const newOrder = new Order({
       ...rest,
       chatId,
-      userId,
       firstName,
       lastName,
       chatTitle,
       fromTelegram,
-      ...rest,
+      topicId,
     });
 
     await newOrder.save();
@@ -267,7 +168,7 @@ export const createOrder = async (orderData) => {
 
 export const getAllOrders = async () => {
   try {
-    const orders = await Order.find();
+    const orders = await Order.find({ status: { $ne: "done" } });
     return orders;
   } catch (err) {
     console.error("Failed to retrieve orders in db", err);
@@ -299,16 +200,23 @@ export const updateOrderStatus = async (_id) => {
 
 export const deleteOrder = async (orderId) => {
   try {
-    const order = await Order.findOneAndDelete({ id: orderId });
+    const idString = String(orderId);
+    const isObjectId = /^[0-9a-fA-F]{24}$/.test(idString);
+    const filter = isObjectId ? { _id: orderId } : { id: orderId };
+    const order = await Order.findOneAndUpdate(
+      filter,
+      { status: "done", updatedAt: Date.now() },
+      { new: true },
+    );
 
     if (!order) {
       throw new Error(`Order with id ${orderId} not found`);
     }
 
-    console.log("Order deleted in db:", order.id);
+    console.log("Order marked as done in db:", order.id);
     return order;
   } catch (err) {
-    console.error("Failed to delete order", err);
+    console.error("Failed to mark order as done", err);
     throw err;
   }
 };
@@ -332,3 +240,5 @@ export const updateOrderText = async (id, newText) => {
     throw err;
   }
 };
+
+

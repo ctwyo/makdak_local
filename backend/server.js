@@ -10,11 +10,10 @@ import {
   OrdersStats,
   updateOrderText,
   Chat,
-  User,
   Order,
 } from "./db.js";
 import { getLocalAddress } from "./getLocalAddress.js";
-import { bot, sendBotNotification, sendMessageToTelegram } from "./bot.js";
+
 import path from "path";
 import { fileURLToPath } from "url";
 import http from "http";
@@ -24,6 +23,7 @@ import axios from "axios";
 const app = express();
 // Указываем порт
 const PORT = 3000;
+const USERBOT_URL = process.env.USERBOT_URL || "http://127.0.0.1:4000";
 // Подключение JSON-парсера для обработки тела запросов
 app.use(express.json());
 // Подключение CORS
@@ -68,6 +68,40 @@ const broadCast = (message) => {
   });
 };
 
+const notifyUserbotReady = async ({
+  chatId,
+  message,
+  messageId,
+  topicId,
+  reaction = "👍",
+}) => {
+  try {
+    await axios.post(`${USERBOT_URL}/order-ready`, {
+      chatId,
+      text: message,
+      messageId,
+      topicId,
+      reaction,
+    });
+  } catch (error) {
+    console.error("Failed to notify userbot about ready order:", error.response?.data || error.message);
+  }
+};
+
+const sendMessageToTelegram = async (topicId, chatId, message) => {
+  if (!message) return;
+  try {
+    await axios.post(`${USERBOT_URL}/send-message`, {
+      chatId,
+      text: message,
+      topicId,
+    });
+  } catch (error) {
+    console.error("Failed to send message via userbot:", error.response?.data || error.message);
+  }
+};
+
+
 app.get("/orders", async (req, res) => {
   try {
     const orders = await getAllOrders();
@@ -84,7 +118,7 @@ app.get("/orders", async (req, res) => {
 });
 
 app.post("/new-order", async (req, res) => {
-  const { text, userId, action, fromTelegram, ...tail } = req.body;
+  const { text, action, fromTelegram, ...tail } = req.body;
   console.log(`tail ${JSON.stringify(tail)}`);
 
   // Если нет текста, сразу отправляем ошибку
@@ -123,27 +157,16 @@ app.post("/new-order", async (req, res) => {
       // const newOrderId = totalOrders + 1;
       const newOrderId = totalOrders;
 
-      let fullName = "";
-      if (fromTelegram) {
-        try {
-          const existingUser = await User.findOne({ userId });
-          if (existingUser) {
-            fullName = existingUser.fullName;
-          }
-        } catch (error) {
-          console.error("Failed to create or get user:", error);
-        }
-      }
+      const fullName = tail.fullName || "";
 
       // Формируем новый заказ
       const order = {
         id: newOrderId,
         status: "pending",
-        fullName: fullName,
-        fromTelegram: fromTelegram,
-        userId: userId,
-        text: text,
-        action: action,
+        fullName,
+        fromTelegram,
+        text,
+        action,
         ...tail,
       };
 
@@ -172,25 +195,18 @@ app.post("/new-order", async (req, res) => {
   }
 });
 
-//удаление
+// помечаем заказ выполненным
 app.delete("/delete-order/:id/", async (req, res) => {
   const { id } = req.params;
   const { userId } = req.body;
 
   try {
-    const order = await Order.findOneAndDelete({ _id: id });
-    if (order) {
-      console.log(`deleted order ${order._id}`);
-    }
-
-    if (!deleteOrder) {
-      // !order
-      return res.status(400).json({ error: "Order not found" });
-    }
-    broadCast({ type: "delete-order", userId: userId, id: id });
-    res.status(200).json({ id: id });
+    await deleteOrder(id);
+    broadCast({ type: "delete-order", id, userId });
+    res.status(200).json({ id });
   } catch (err) {
-    console.error("Failed to delete order", err);
+    console.error("Failed to mark order as done", err);
+    res.status(500).json({ error: "Failed to mark order as done" });
   }
 });
 
@@ -212,19 +228,20 @@ app.patch("/order/:id/update", async (req, res) => {
       if (newOrder.fromTelegram) {
         const message =
           newOrder.action === "montazh"
-            ? `✅ Монтаж собран! #${newOrder.id}`
+            ? `🛠 Монтаж готов! #${newOrder.id}`
             : `✅ Заказ собран! #${newOrder.id}`;
-        await sendBotNotification(
-          bot,
-          newOrder.chatId,
+        await notifyUserbotReady({
+          chatId: newOrder.chatId,
           message,
-          newOrder.messageId,
-        );
+          messageId: newOrder.messageId,
+          topicId: newOrder.topicId,
+          reaction: newOrder.action === "montazh" ? "🛠" : "👍",
+        });
       }
       console.log(
         `updateOrderStatus on server executed in ${Date.now() - start} ms`,
       );
-      broadCast({ type: "update-order", order: newOrder, userId: userId });
+      broadCast({ type: "update-order", order: newOrder, userId });
       res.status(200).json(newOrder);
       // res.status(200).json(newOrder);
     } catch (err) {
@@ -248,7 +265,7 @@ app.patch("/update-order/:id/text", async (req, res) => {
     broadCast({
       type: "update-order-text",
       order: updatedOrder,
-      userId: userId,
+      userId,
     });
   } catch (err) {
     console.log("Failed to update order text", err);
@@ -260,12 +277,16 @@ app.patch("/update-order/:id/text", async (req, res) => {
 app.post("/send-message", async (req, res) => {
   const { topicId, chatId, message } = req.body;
 
-  if (message) {
-    try {
-      await sendMessageToTelegram(topicId, chatId, message);
-    } catch (error) {
-      console.error("Failed to send message on server", error);
-    }
+  if (!message) {
+    return res.status(400).json({ error: "message is required" });
+  }
+
+  try {
+    await sendMessageToTelegram(topicId, chatId, message);
+    return res.status(200).json({ status: "ok" });
+  } catch (error) {
+    console.error("Failed to send message on server", error);
+    return res.status(500).json({ error: "Failed to send message" });
   }
 });
 
@@ -281,54 +302,6 @@ app.get("/chats", async (req, res) => {
 });
 
 //запрос всех курьеров
-app.get("/couriers", async (req, res) => {
-  try {
-    // const couriers = await User.find({ role: "courier" });
-    const couriers = await User.find();
-
-    res.status(200).json(couriers);
-  } catch (error) {
-    console.error("Failed to get chats", error);
-    res.status(500).json({ error: "Failed to get chats" });
-  }
-});
-
-app.patch("/users/:id", async (req, res) => {
-  console.log(`gde patch ebat`);
-
-  const { id: userId } = req.params;
-  console.log(`userId ${userId}`);
-
-  const updatedData = req.body;
-
-  try {
-    const updatedUser = await User.findOneAndUpdate({ userId }, updatedData, {
-      new: true,
-    });
-    if (!updatedUser) {
-      return res.status(404).json({ error: "User not found" });
-    }
-    res.status(200).json(updatedUser);
-  } catch (error) {
-    console.error("Failed to update user", error);
-    res.status(500).json({ error: "Failed to update user" });
-  }
-});
-
-app.delete("/users/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const deletedUser = await User.findOneAndDelete({ userId: id });
-    if (!deletedUser) {
-      return res.status(404).json({ error: "User not found" });
-    } else {
-      res.status(200).json({ id: id });
-    }
-  } catch (error) {
-    console.error("Failed to delete user", error);
-  }
-});
-
 const getCurrentMonth = () => {
   const months = [
     "Январь",
@@ -498,3 +471,4 @@ app.get("*", (req, res) => {
 //     wss.emit("connection", ws, req);
 //   });
 // });
+
