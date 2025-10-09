@@ -5,6 +5,7 @@ import {
   connectDB,
   createOrder,
   getAllOrders,
+  getDoneOrders,
   updateOrderStatus,
   deleteOrder,
   OrdersStats,
@@ -114,6 +115,15 @@ app.get("/orders", async (req, res) => {
     res.json(sortedOrders);
   } catch (err) {
     res.status(500).json({ error: "Failed to get orders" });
+  }
+});
+
+app.get("/done-orders", async (req, res) => {
+  try {
+    const orders = await getDoneOrders();
+    res.json(orders);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to get done orders" });
   }
 });
 

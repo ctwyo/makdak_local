@@ -1,6 +1,7 @@
 import { createSlice } from "@reduxjs/toolkit";
 import {
   fetchOrders,
+  fetchDoneOrders,
   addOrderApi,
   deleteOrderApi,
   updateOrderStatusApi,
@@ -11,7 +12,8 @@ const isActiveOrder = (order) =>
   order?.status === "pending" || order?.status === "ready";
 
 const initialState = {
-  orders: [], // изменено на ordersList
+  orders: [], // активные заказы (pending, ready)
+  doneOrders: [], // завершенные заказы (done)
   loading: false,
   error: null,
 };
@@ -69,6 +71,18 @@ const ordersSlice = createSlice({
         state.orders = action.payload.filter(isActiveOrder);
       })
       .addCase(fetchOrders.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.error.message;
+      })
+
+      .addCase(fetchDoneOrders.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchDoneOrders.fulfilled, (state, action) => {
+        state.loading = false;
+        state.doneOrders = action.payload;
+      })
+      .addCase(fetchDoneOrders.rejected, (state, action) => {
         state.loading = false;
         state.error = action.error.message;
       })
@@ -151,6 +165,7 @@ export const {
 } = ordersSlice.actions;
 
 export const selectOrders = (state) => state.ordersStore.orders; // исправлено
+export const selectDoneOrders = (state) => state.ordersStore.doneOrders;
 export const selectOrdersLoading = (state) => state.ordersStore.loading;
 export const selectOrdersError = (state) => state.ordersStore.error;
 

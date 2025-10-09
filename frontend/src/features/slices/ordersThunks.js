@@ -47,6 +47,15 @@ export const fetchOrders = createAsyncThunk("orders/fetchOrders", async () => {
   return response.json();
 });
 
+// Функция для получения завершенных заказов
+export const fetchDoneOrders = createAsyncThunk("orders/fetchDoneOrders", async () => {
+  const response = await fetch(`${baseUrl}/done-orders`);
+  if (!response.ok) {
+    throw new Error("Failed to fetch done orders");
+  }
+  return response.json();
+});
+
 // Функция для добавления нового заказа
 export const addOrderApi = createAsyncThunk(
   "orders/addOrder",

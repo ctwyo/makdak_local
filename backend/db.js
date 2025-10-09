@@ -79,6 +79,11 @@ const orderSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  createdAt: {
+    type: Date,
+    required: true,
+    default: Date.now,
+  },
   updatedAt: {
     type: Date,
     required: true,
@@ -156,6 +161,8 @@ export const createOrder = async (orderData) => {
       chatTitle,
       fromTelegram,
       topicId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     });
 
     await newOrder.save();
@@ -172,6 +179,16 @@ export const getAllOrders = async () => {
     return orders;
   } catch (err) {
     console.error("Failed to retrieve orders in db", err);
+    throw err;
+  }
+};
+
+export const getDoneOrders = async () => {
+  try {
+    const orders = await Order.find({ status: "done" }).sort({ createdAt: -1 });
+    return orders;
+  } catch (err) {
+    console.error("Failed to retrieve done orders in db", err);
     throw err;
   }
 };
