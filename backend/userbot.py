@@ -27,12 +27,12 @@ USERBOT_HOST = os.environ.get("USERBOT_HOST", "127.0.0.1")
 USERBOT_PORT = int(os.environ.get("USERBOT_PORT", "4000"))
 
 TRIGGERS = {
-    "\u041d\u043e\u0432\u044b\u0439 \u0437\u0430\u043a\u0430\u0437 \u043e\u0442": "zakaz",
-    "@\u043c\u043e\u043d\u0442\u0430\u0436": "montazh",
+    "Новый заказ от": "zakaz",
+    "@монтаж": "montazh",
 }
 
 ORDER_HEADER_PATTERN = (
-    "\u041d\u043e\u0432\u044b\u0439 \u0437\u0430\u043a\u0430\u0437 \u043e\u0442\\s+(.+)"
+    "Новый заказ от\\s+(.+)"
 )
 
 
@@ -40,16 +40,18 @@ def extract_action(text: str):
     for trigger, action in TRIGGERS.items():
         if re.search(trigger, text, flags=re.IGNORECASE):
             cleaned = re.sub(
-                rf"\s*{trigger}\s*", " ", text, flags=re.IGNORECASE
+                rf"\s*{re.escape(trigger)}\s*", " ", text, flags=re.IGNORECASE
             ).strip()
             if cleaned:
                 return action, cleaned
     return None, None
 
 
-def parse_order_message(message: str) -> Optional[dict]:
+def parse_order_message(message: str, action: str = None) -> Optional[dict]:
+    print(f"Parsing message: '{message}'")
     lines = [line.strip() for line in message.splitlines()]
     lines = [line for line in lines if line]
+    print(f"Lines after filtering: {lines}")
     if not lines:
         return None
 
@@ -83,19 +85,75 @@ def parse_order_message(message: str) -> Optional[dict]:
             order_start_idx = idx + 1
 
     order_lines = lines[order_start_idx:]
+    print(f"Order lines: {order_lines}")
     if not order_lines:
         return None
 
-    order_text = "\n".join(order_lines).strip()
+    # Если после триггера пришла всего одна строка без шапки/служебных полей,
+    # трактуем её как текст заказа, а имя берём из username/full_name, если были
+    if len(order_lines) == 1 and not full_name and not username and not user_id:
+        single_line_text = order_lines[0].strip()
+        if single_line_text:
+            return {
+                "full_name": full_name,
+                "username": username,
+                "order_text": single_line_text,
+                "user_id": user_id,
+            }
+
+    # Специальная обработка для монтажа: если есть full_name и несколько строк,
+    # то весь текст после full_name идет в order_text (без комментариев для монтажа)
+    if action == "montazh" and full_name and len(order_lines) > 0:
+        montazh_text = "\n".join(order_lines).strip()
+        if montazh_text:
+            return {
+                "full_name": full_name,
+                "username": username,
+                "order_text": montazh_text,
+                "user_id": user_id,
+            }
+
+    # Разделяем основной текст заказа и комментарий
+    order_text_lines = []
+    comment_lines = []
+    in_comment_section = False
+    
+    for line in order_lines:
+        lower_line = line.lower()
+        if lower_line.startswith("комментарий:") or lower_line.startswith("комментарий"):
+            in_comment_section = True
+            # Убираем префикс "Комментарий:" из первой строки комментария
+            comment_line = re.sub(r"^комментарий:\s*", "", line, flags=re.IGNORECASE).strip()
+            if comment_line:
+                comment_lines.append(comment_line)
+            continue
+        
+        if in_comment_section:
+            comment_lines.append(line)
+        else:
+            order_text_lines.append(line)
+    
+    order_text = "\n".join(order_text_lines).strip()
+    comment_text = "\n".join(comment_lines).strip()
+    
+    print(f"Order text: '{order_text}'")
+    print(f"Comment text: '{comment_text}'")
+    
     if not order_text:
         return None
 
-    return {
+    result = {
         "full_name": full_name,
         "username": username,
         "order_text": order_text,
         "user_id": user_id,
     }
+    
+    # Добавляем комментарий только если он есть
+    if comment_text:
+        result["comment"] = comment_text
+    
+    return result
 
 
 def extract_topic_id(event: events.NewMessage.Event) -> int:
@@ -292,7 +350,7 @@ async def handle_new_message(event: events.NewMessage.Event):
     if not action or not cleaned_text:
         return
 
-    order_details = parse_order_message(cleaned_text)
+    order_details = parse_order_message(cleaned_text, action)
 
     if not order_details:
         print("Failed to parse order message, skipping.")
@@ -348,6 +406,15 @@ async def handle_new_message(event: events.NewMessage.Event):
         "fullName": effective_full_name,
         "sourceMessage": cleaned_text,
     }
+    
+    # Добавляем комментарий в payload если он есть
+    if "comment" in order_details:
+        payload["comment"] = order_details["comment"]
+        print(f"Added comment to payload: '{order_details['comment']}'")
+    else:
+        print("No comment found in order_details")
+    
+    print(f"Final payload: {payload}")
 
     try:
         await forward_order(payload)

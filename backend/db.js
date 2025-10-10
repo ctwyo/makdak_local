@@ -118,6 +118,11 @@ const orderSchema = new mongoose.Schema({
     required: false,
     default: "",
   },
+  comment: {
+    type: String,
+    required: false,
+    default: "",
+  },
 });
 
 export const Order = mongoose.model("Order", orderSchema);

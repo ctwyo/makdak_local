@@ -92,9 +92,8 @@ const ordersSlice = createSlice({
       })
       .addCase(addOrderApi.fulfilled, (state, action) => {
         state.loading = false;
-        if (isActiveOrder(action.payload)) {
-          state.orders.push(action.payload);
-        }
+        // Не добавляем заказ в состояние здесь, так как он придет через WebSocket
+        // Это предотвращает дублирование заказов
       })
       .addCase(addOrderApi.rejected, (state, action) => {
         state.loading = false;

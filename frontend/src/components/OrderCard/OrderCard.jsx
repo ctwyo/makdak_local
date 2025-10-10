@@ -41,6 +41,7 @@ const OrderCard = ({
     updatedAt,
     fromTelegram,
     fullName,
+    comment,
   } = order;
 
   const formatDate = (isoDate) => {
@@ -171,6 +172,26 @@ const OrderCard = ({
             {formatText(text)}
           </Typography>
 
+          {comment && (
+            <Typography
+              variant="body2"
+              color="textSecondary"
+              component="p"
+              textAlign="left"
+              className={styles.itemText}
+              sx={{ 
+                fontStyle: 'italic',
+                marginTop: '8px',
+                padding: '8px',
+                backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                borderRadius: '4px',
+                borderLeft: '3px solid #1976d2'
+              }}
+            >
+              <strong>Комментарий:</strong> {formatText(comment)}
+            </Typography>
+          )}
+
           <Typography
             color="textSecondary"
             component="p"
@@ -220,9 +241,26 @@ const OrderCard = ({
               }}
             />
           ) : (
-            <Typography variant="body1" sx={{ mb: 2 }}>
-              {formatText(text)}
-            </Typography>
+            <>
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                {formatText(text)}
+              </Typography>
+              {comment && (
+                <Typography 
+                  variant="body1" 
+                  sx={{ 
+                    mb: 2,
+                    fontStyle: 'italic',
+                    padding: '12px',
+                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                    borderRadius: '4px',
+                    borderLeft: '3px solid #1976d2'
+                  }}
+                >
+                  <strong>Комментарий:</strong> {formatText(comment)}
+                </Typography>
+              )}
+            </>
           )}
 
           <div style={{ display: "flex", justifyContent: "space-between" }}>

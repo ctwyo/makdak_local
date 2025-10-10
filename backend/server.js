@@ -238,7 +238,7 @@ app.patch("/order/:id/update", async (req, res) => {
       if (newOrder.fromTelegram) {
         const message =
           newOrder.action === "montazh"
-            ? `🛠 Монтаж готов! #${newOrder.id}`
+            ? `🛠 Монтаж собран! #${newOrder.id}`
             : `✅ Заказ собран! #${newOrder.id}`;
         await notifyUserbotReady({
           chatId: newOrder.chatId,
