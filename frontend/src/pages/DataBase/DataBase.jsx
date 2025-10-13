@@ -29,6 +29,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  List,
+  ListItem,
+  ListItemText,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -181,6 +184,15 @@ const DataBase = () => {
     setSelectedOrder(null);
   };
 
+  // Открыть детали заказа из списка оборудования
+  const handleEquipmentOrderClick = (orderId) => {
+    const order = doneOrders.find((o) => o.id === orderId);
+    if (order) {
+      setSelectedOrder(order);
+      setOrderDetailsOpen(true);
+    }
+  };
+
   if (loading) {
     return <Loader />;
   }
@@ -283,45 +295,29 @@ const DataBase = () => {
                     <TableCell>№</TableCell>
                     <TableCell>Дата создания</TableCell>
                     <TableCell>Имя пользователя</TableCell>
-                    <TableCell>Оборудование</TableCell>
                     <TableCell>Статус</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {filteredOrders.map((order, index) => {
-                    const equipment = parseEquipment(order.text);
-                    return (
-                      <TableRow 
-                        key={order._id}
-                        hover
-                        onClick={() => handleOrderClick(order)}
-                        sx={{ cursor: 'pointer' }}
-                      >
-                        <TableCell>{order.id}</TableCell>
-                        <TableCell>{formatDate(order.createdAt)}</TableCell>
-                        <TableCell>{order.fullName || "Не указано"}</TableCell>
-                        <TableCell>
-                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                            {equipment.map((item, idx) => (
-                              <Chip
-                                key={idx}
-                                label={`${item.name} ${item.quantity ? `(${item.quantity})` : ''}`}
-                                size="small"
-                                variant="outlined"
-                              />
-                            ))}
-                          </Box>
-                        </TableCell>
-                        <TableCell>
-                          <Chip
-                            label={order.status === "done" ? "Завершен" : order.status}
-                            color={order.status === "done" ? "success" : "default"}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                  {filteredOrders.map((order, index) => (
+                    <TableRow 
+                      key={order._id}
+                      hover
+                      onClick={() => handleOrderClick(order)}
+                      sx={{ cursor: 'pointer' }}
+                    >
+                      <TableCell>{order.id}</TableCell>
+                      <TableCell>{formatDate(order.createdAt)}</TableCell>
+                      <TableCell>{order.fullName || "Не указано"}</TableCell>
+                      <TableCell>
+                        <Chip
+                          label={order.status === "done" ? "Завершен" : order.status}
+                          color={order.status === "done" ? "success" : "default"}
+                          size="small"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
                 </TableBody>
               </Table>
             </TableContainer>
@@ -411,11 +407,16 @@ const DataBase = () => {
                         />
                       </Box>
                       <Box sx={{ ml: 2 }}>
-                        {equipment.orders.map((order, idx) => (
-                          <Typography key={idx} variant="body2" sx={{ mb: 0.5 }}>
-                            Заказ #{order.orderId} - {order.quantity} шт. ({formatDate(order.date)}) - {order.fullName}
-                          </Typography>
-                        ))}
+                    {equipment.orders.map((order, idx) => (
+                      <Typography
+                        key={idx}
+                        variant="body2"
+                        sx={{ mb: 0.5, cursor: 'pointer', textDecoration: 'underline' }}
+                        onClick={() => handleEquipmentOrderClick(order.orderId)}
+                      >
+                        Заказ #{order.orderId} - {order.quantity} шт. ({formatDate(order.date)}) - {order.fullName}
+                      </Typography>
+                    ))}
                       </Box>
                       {index < equipmentFromFilteredOrders.length - 1 && <Divider sx={{ mt: 2 }} />}
                     </Box>
@@ -463,16 +464,30 @@ const DataBase = () => {
                 <Typography variant="h6" sx={{ mb: 1 }}>
                   Заказанное оборудование:
                 </Typography>
-                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                <List dense sx={{ mb: 1 }}>
                   {parseEquipment(selectedOrder.text).map((item, idx) => (
-                    <Chip
-                      key={idx}
-                      label={`${item.name} ${item.quantity ? `(${item.quantity} шт.)` : ''}`}
-                      color="primary"
-                      variant="outlined"
-                    />
+                    <ListItem key={idx} disableGutters sx={{ py: 0.5 }}>
+                      <Box
+                        sx={{
+                          width: '100%',
+                          bgcolor: 'action.hover',
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          px: 1.5,
+                          py: 1,
+                          borderRadius: 1,
+                        }}
+                      >
+                        <Typography variant="body1">{item.name}</Typography>
+                        {item.quantity !== null && (
+                          <Typography variant="caption" color="text.secondary">
+                            {item.quantity} шт.
+                          </Typography>
+                        )}
+                      </Box>
+                    </ListItem>
                   ))}
-                </Box>
+                </List>
               </Box>
             )}
           </DialogContent>

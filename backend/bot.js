@@ -3,6 +3,8 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { createOrGetChat } from "./db.js";
 import cron from "node-cron";
+import fs from "fs";
+import path from "path";
 dotenv.config();
 // const localIP = getLocalAddress();
 const PORT = 3000;
@@ -11,6 +13,28 @@ const SERVER_URL = `http://localhost:${PORT}`;
 dotenv.config();
 const TOKEN = process.env.BOT_TOKEN;
 export const bot = new Telegraf(TOKEN);
+
+// Функция для чтения users.json
+function getUserFullName(userId, userName = null) {
+  try {
+    const usersPath = path.join(process.cwd(), 'users.json');
+    const usersData = fs.readFileSync(usersPath, 'utf8');
+    const users = JSON.parse(usersData);
+    
+    // Сначала ищем по userId
+    let user = users.find(u => u.userId === userId.toString());
+    
+    // Если не нашли по userId и есть userName, ищем по userName
+    if (!user && userName) {
+      user = users.find(u => u.userName === userName);
+    }
+    
+    return user ? user.fullName : null;
+  } catch (error) {
+    console.error('Ошибка при чтении users.json:', error);
+    return null;
+  }
+}
 
 let messageSent = false;
 export async function sendMessageToTelegram(topicId, chatId, message) {
@@ -110,10 +134,15 @@ bot.on("text", async (ctx) => {
 
     if (cleanedText.length > 0) {
       try {
+        // Получаем fullName из users.json или используем firstName из Telegram
+        const fullNameFromUsers = getUserFullName(userId, userName);
+        const effectiveFullName = fullNameFromUsers || firstName;
+        
         const payload = {
           text: cleanedText,
           firstName: firstName,
           lastName: lastName,
+          fullName: effectiveFullName,
           chatId: chatId,
           messageId: messageId,
           action: action,

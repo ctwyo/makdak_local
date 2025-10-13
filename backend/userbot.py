@@ -1,6 +1,7 @@
 ﻿import asyncio
 import os
 import re
+import json
 from typing import Optional
 from dotenv import load_dotenv
 from telethon import TelegramClient, events, functions, types
@@ -28,6 +29,7 @@ USERBOT_PORT = int(os.environ.get("USERBOT_PORT", "4000"))
 
 TRIGGERS = {
     "Новый заказ от": "zakaz",
+    "@хочу": "zakaz",
     "@монтаж": "montazh",
 }
 
@@ -36,14 +38,44 @@ ORDER_HEADER_PATTERN = (
 )
 
 
+def get_user_full_name(user_id, username=None):
+    """Получить fullName из users.json по userId или userName"""
+    try:
+        users_path = os.path.join(os.getcwd(), "users.json")
+        with open(users_path, 'r', encoding='utf-8') as f:
+            users = json.load(f)
+        
+        # Сначала ищем по userId
+        user = next((u for u in users if u.get("userId") == str(user_id)), None)
+        
+        # Если не нашли по userId и есть username, ищем по userName
+        if not user and username:
+            user = next((u for u in users if u.get("userName") == username), None)
+        
+        return user.get("fullName") if user else None
+    except Exception as e:
+        print(f"Ошибка при чтении users.json: {e}")
+        return None
+
+
 def extract_action(text: str):
+    print(f"DEBUG extract_action: Исходный текст: '{text}'")
     for trigger, action in TRIGGERS.items():
-        if re.search(trigger, text, flags=re.IGNORECASE):
-            cleaned = re.sub(
-                rf"\s*{re.escape(trigger)}\s*", " ", text, flags=re.IGNORECASE
-            ).strip()
+        # Ищем триггер в начале сообщения (первой строки)
+        if re.search(rf"^\s*{re.escape(trigger)}", text, flags=re.IGNORECASE):
+            print(f"DEBUG extract_action: Найден триггер '{trigger}' -> action '{action}'")
+            if trigger == "Новый заказ от":
+                # Не удаляем шапку, она нужна парсеру для извлечения ФИО
+                cleaned = text.strip()
+            else:
+                # Для @хочу удаляем только ведущий триггер в начале
+                cleaned = re.sub(
+                    rf"^\s*{re.escape(trigger)}\s*", "", text, flags=re.IGNORECASE
+                ).strip()
+            print(f"DEBUG extract_action: Очищенный текст: '{cleaned}'")
             if cleaned:
                 return action, cleaned
+    print(f"DEBUG extract_action: Триггеры не найдены")
     return None, None
 
 
@@ -81,6 +113,10 @@ def parse_order_message(message: str, action: str = None) -> Optional[dict]:
             continue
 
         if not full_name:
+            # Для @хочу не парсим имя из строк, имя берется из users.json
+            if action == "zakaz":
+                continue
+            # Для других случаев парсим имя из первой строки
             full_name = line.rstrip(".")
             order_start_idx = idx + 1
 
@@ -346,7 +382,9 @@ async def stop_http_server():
 @client.on(events.NewMessage(chats=TARGET_CHAT_ID))
 async def handle_new_message(event: events.NewMessage.Event):
     text = event.raw_text or ""
+    print(f"DEBUG: Получено сообщение: '{text}'")
     action, cleaned_text = extract_action(text)
+    print(f"DEBUG: action={action}, cleaned_text='{cleaned_text}'")
     if not action or not cleaned_text:
         return
 
@@ -362,14 +400,25 @@ async def handle_new_message(event: events.NewMessage.Event):
     topic_id = extract_topic_id(event)
 
     parsed_full_name = order_details.get("full_name", "")
-
-    effective_full_name = (
-        parsed_full_name
-        or " ".join(
-            part for part in [getattr(sender, "first_name", ""), getattr(sender, "last_name", "")]
-            if part
-        )
-    ).strip()
+    
+    # Получаем fullName из users.json или используем firstName из Telegram
+    user_id = getattr(sender, "id", None)
+    username = getattr(sender, "username", None)
+    full_name_from_users = get_user_full_name(user_id, username) if user_id else None
+    
+    # Определяем тип сообщения по наличию parsed_full_name
+    if parsed_full_name:
+        # Это сообщение с шапкой "Новый заказ от" - используем имя из шапки
+        effective_full_name = parsed_full_name
+    else:
+        # Это сообщение @хочу - используем имя из users.json
+        effective_full_name = (
+            full_name_from_users
+            or " ".join(
+                part for part in [getattr(sender, "first_name", ""), getattr(sender, "last_name", "")]
+                if part
+            )
+        ).strip()
     if not effective_full_name:
         effective_full_name = getattr(sender, "username", "") or "Unknown"
 
@@ -401,6 +450,8 @@ async def handle_new_message(event: events.NewMessage.Event):
         "messageId": event.message.id,
         "action": action,
         "fromTelegram": True,
+        "userId": user_id,
+        "userName": username,
         "chatTitle": getattr(chat, "title", "") or "",
         "topicId": topic_id or 0,
         "fullName": effective_full_name,
