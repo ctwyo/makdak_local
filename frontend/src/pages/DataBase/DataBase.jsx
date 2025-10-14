@@ -32,7 +32,16 @@ import {
   List,
   ListItem,
   ListItemText,
+  ListItemButton,
+  ListItemIcon,
+  Avatar,
+  Stack,
 } from "@mui/material";
+import Autocomplete from "@mui/material/Autocomplete";
+import Checkbox from "@mui/material/Checkbox";
+import SearchIcon from "@mui/icons-material/Search";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import RestartAltIcon from "@mui/icons-material/RestartAlt";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
@@ -41,6 +50,7 @@ import Loader from "../../components/Loader/Loader";
 import { 
   parseEquipment, 
   getUniqueFullNames,
+  getUniqueEquipmentNames,
   isDateInRange
 } from "../../helpers/parseEquipment";
 
@@ -57,13 +67,12 @@ const DataBase = () => {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [selectedUser, setSelectedUser] = useState("");
-  const [equipmentFilter, setEquipmentFilter] = useState("");
 
   // Фильтры для оборудования
   const [equipmentStartDate, setEquipmentStartDate] = useState(null);
   const [equipmentEndDate, setEquipmentEndDate] = useState(null);
   const [equipmentSelectedUser, setEquipmentSelectedUser] = useState("");
-  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [equipmentNamesSelected, setEquipmentNamesSelected] = useState([]);
 
   // Модальное окно для деталей заказа
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -73,12 +82,25 @@ const DataBase = () => {
     dispatch(fetchDoneOrders());
   }, [dispatch]);
 
-  // Получаем уникальные имена пользователей
-  const uniqueFullNames = useMemo(() => getUniqueFullNames(doneOrders), [doneOrders]);
+  // Заказы только типа "zakaz" для списков-подстановок
+  const zakazOnlyOrders = useMemo(
+    () => doneOrders.filter((o) => !o.action || o.action === 'zakaz'),
+    [doneOrders]
+  );
+
+  // Получаем уникальные имена пользователей только из zakaz
+  const uniqueFullNames = useMemo(
+    () => getUniqueFullNames(zakazOnlyOrders),
+    [zakazOnlyOrders]
+  );
 
   // Фильтрация заказов
   const filteredOrders = useMemo(() => {
     return doneOrders.filter(order => {
+      // Показываем только заказы типа "zakaz"
+      if (order.action && order.action !== 'zakaz') {
+        return false;
+      }
       // Фильтр по диапазону дат
       if (startDate || endDate) {
         if (!isDateInRange(order.createdAt, startDate, endDate)) {
@@ -93,24 +115,19 @@ const DataBase = () => {
         }
       }
 
-      // Фильтр по оборудованию
-      if (equipmentFilter) {
-        const equipment = parseEquipment(order.text);
-        const hasEquipment = equipment.some(item => 
-          item.name.toLowerCase().includes(equipmentFilter.toLowerCase())
-        );
-        if (!hasEquipment) {
-          return false;
-        }
-      }
+      // Фильтр по оборудованию удален
 
       return true;
     });
-  }, [doneOrders, startDate, endDate, selectedUser, equipmentFilter]);
+  }, [doneOrders, startDate, endDate, selectedUser]);
 
   // Фильтрация для поиска по оборудованию
   const equipmentFilteredOrders = useMemo(() => {
     return doneOrders.filter(order => {
+      // Показываем только заказы типа "zakaz"
+      if (order.action && order.action !== 'zakaz') {
+        return false;
+      }
       // Фильтр по диапазону дат
       if (equipmentStartDate || equipmentEndDate) {
         if (!isDateInRange(order.createdAt, equipmentStartDate, equipmentEndDate)) {
@@ -129,40 +146,47 @@ const DataBase = () => {
     });
   }, [doneOrders, equipmentStartDate, equipmentEndDate, equipmentSelectedUser]);
 
-  // Получаем оборудование из отфильтрованных заказов для поиска
-  const equipmentFromFilteredOrders = useMemo(() => {
-    const equipmentMap = {};
-    
+  // Возможные названия оборудования (алфавитно)
+  const equipmentNames = useMemo(
+    () => getUniqueEquipmentNames(equipmentFilteredOrders),
+    [equipmentFilteredOrders]
+  );
+
+  // Сортировка: выбранные позиции выводим сверху списка
+  const sortedEquipmentNames = useMemo(() => {
+    if (!equipmentNames || equipmentNames.length === 0) return [];
+    if (!equipmentNamesSelected || equipmentNamesSelected.length === 0) return equipmentNames;
+    const selectedSet = new Set(equipmentNamesSelected);
+    const selected = equipmentNames.filter((n) => selectedSet.has(n));
+    const rest = equipmentNames.filter((n) => !selectedSet.has(n));
+    return [...selected, ...rest];
+  }, [equipmentNames, equipmentNamesSelected]);
+
+  // Плоский список записей по оборудованию
+  const equipmentEntries = useMemo(() => {
+    const entries = [];
     equipmentFilteredOrders.forEach(order => {
-      const equipment = parseEquipment(order.text);
-      
-      equipment.forEach(item => {
-        // Если есть поиск по оборудованию, показываем только его
-        if (equipmentSearch && !item.name.toLowerCase().includes(equipmentSearch.toLowerCase())) {
-          return;
-        }
-        
-        if (!equipmentMap[item.name]) {
-          equipmentMap[item.name] = {
-            name: item.name,
-            totalQuantity: 0,
-            orders: []
-          };
-        }
-        
-        const quantity = item.quantity || 0;
-        equipmentMap[item.name].totalQuantity += quantity;
-        equipmentMap[item.name].orders.push({
+      const items = parseEquipment(order.text);
+      items.forEach(item => {
+        if (equipmentNamesSelected.length > 0 && !equipmentNamesSelected.includes(item.name)) return;
+        entries.push({
           orderId: order.id,
-          quantity: quantity,
           date: order.createdAt,
-          fullName: order.fullName
+          fullName: order.fullName,
+          name: item.name,
+          quantity: item.quantity || 0,
         });
       });
     });
-    
-    return Object.values(equipmentMap);
-  }, [equipmentFilteredOrders, equipmentSearch]);
+    return entries.sort((a, b) => new Date(a.date) - new Date(b.date));
+  }, [equipmentFilteredOrders, equipmentNamesSelected]);
+
+  const totalEquipmentQuantity = useMemo(() => {
+    return equipmentEntries.reduce((sum, e) => sum + (e.quantity || 0), 0);
+  }, [equipmentEntries]);
+
+  // Ранее здесь формировалась агрегированная структура по оборудованию.
+  // Логику заменили на плоский список записей equipmentEntries.
 
   const formatDate = (isoDate) => {
     const date = new Date(isoDate);
@@ -193,6 +217,14 @@ const DataBase = () => {
     }
   };
 
+  // Сброс фильтров поиска по оборудованию
+  const handleResetEquipmentFilters = () => {
+    setEquipmentStartDate(null);
+    setEquipmentEndDate(null);
+    setEquipmentSelectedUser("");
+    setEquipmentNamesSelected([]);
+  };
+
   if (loading) {
     return <Loader />;
   }
@@ -204,26 +236,42 @@ const DataBase = () => {
   return (
     <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={ru}>
       <Box sx={{ p: 3 }}>
-        <Typography variant="h4" gutterBottom>
-          База данных завершенных заказов
-        </Typography>
+       
 
         {/* Переключатель режимов */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-          <ButtonGroup variant="contained" aria-label="outlined primary button group">
-            <Button 
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'flex-start' }}>
+          <Stack direction="row" spacing={1}>
+            <Button
               onClick={() => setViewMode('orders')}
-              color={viewMode === 'orders' ? 'primary' : 'inherit'}
+              variant={viewMode === 'orders' ? 'contained' : 'outlined'}
+              color="primary"
+              startIcon={<FilterListIcon />}
+              sx={{
+                borderRadius: 999,
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 2.5,
+                py: 1,
+              }}
             >
               Фильтр по заказам
             </Button>
-            <Button 
+            <Button
               onClick={() => setViewMode('equipment')}
-              color={viewMode === 'equipment' ? 'primary' : 'inherit'}
+              variant={viewMode === 'equipment' ? 'contained' : 'outlined'}
+              color="primary"
+              startIcon={<SearchIcon />}
+              sx={{
+                borderRadius: 999,
+                textTransform: 'none',
+                fontWeight: 600,
+                px: 2.5,
+                py: 1,
+              }}
             >
               Поиск по оборудованию
             </Button>
-          </ButtonGroup>
+          </Stack>
         </Box>
 
         {/* Режим: Фильтр по заказам */}
@@ -231,60 +279,57 @@ const DataBase = () => {
           <>
             {/* Фильтры для заказов */}
             <Card sx={{ mb: 3 }}>
-              <CardHeader title="Фильтры для заказов" />
+              
               <CardContent>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <DatePicker
-                      label="Дата от"
-                      value={startDate}
-                      onChange={setStartDate}
-                      renderInput={(params) => <TextField {...params} fullWidth />}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <DatePicker
-                      label="Дата до"
-                      value={endDate}
-                      onChange={setEndDate}
-                      renderInput={(params) => <TextField {...params} fullWidth />}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Пользователь</InputLabel>
-                      <Select
-                        value={selectedUser}
-                        onChange={(e) => setSelectedUser(e.target.value)}
-                        label="Пользователь"
-                      >
-                        <MenuItem value="">Все пользователи</MenuItem>
-                        {uniqueFullNames.map(name => (
-                          <MenuItem key={name} value={name}>
-                            {name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Оборудование"
-                      value={equipmentFilter}
-                      onChange={(e) => setEquipmentFilter(e.target.value)}
-                      placeholder="Фильтр по оборудованию..."
-                    />
-                  </Grid>
-                </Grid>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' },
+                    gap: 2,
+                    alignItems: 'center',
+                  }}
+                >
+                  <DatePicker
+                    label="Дата от"
+                    value={startDate}
+                    onChange={setStartDate}
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                  />
+                  <DatePicker
+                    label="Дата до"
+                    value={endDate}
+                    onChange={setEndDate}
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Пользователь</InputLabel>
+                    <Select
+                      value={selectedUser}
+                      onChange={(e) => setSelectedUser(e.target.value)}
+                      label="Пользователь"
+                    >
+                      <MenuItem value="">Все пользователи</MenuItem>
+                      {uniqueFullNames.map((name) => (
+                        <MenuItem key={name} value={name}>
+                          {name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Box />
+                </Box>
               </CardContent>
             </Card>
 
-            {/* Статистика */}
-            <Box sx={{ mb: 2 }}>
-              <Typography variant="h6">
-                Найдено заказов: {filteredOrders.length} из {doneOrders.length}
-              </Typography>
+            {/* Статистика (как в поиске по оборудованию) */}
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Stack direction="row" spacing={1}>
+                <Chip 
+                  label={`Найдено заказов: ${filteredOrders.length}`}
+                  variant="outlined"
+                  color="default"
+                />
+              </Stack>
             </Box>
 
             {/* Таблица заказов */}
@@ -335,97 +380,129 @@ const DataBase = () => {
           <>
             {/* Фильтры для оборудования */}
             <Card sx={{ mb: 3 }}>
-              <CardHeader title="Фильтры для поиска оборудования" />
+             
               <CardContent>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <DatePicker
-                      label="Дата от"
-                      value={equipmentStartDate}
-                      onChange={setEquipmentStartDate}
-                      renderInput={(params) => <TextField {...params} fullWidth />}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <DatePicker
-                      label="Дата до"
-                      value={equipmentEndDate}
-                      onChange={setEquipmentEndDate}
-                      renderInput={(params) => <TextField {...params} fullWidth />}
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <FormControl fullWidth>
-                      <InputLabel>Пользователь</InputLabel>
-                      <Select
-                        value={equipmentSelectedUser}
-                        onChange={(e) => setEquipmentSelectedUser(e.target.value)}
-                        label="Пользователь"
-                      >
-                        <MenuItem value="">Все пользователи</MenuItem>
-                        {uniqueFullNames.map(name => (
-                          <MenuItem key={name} value={name}>
-                            {name}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                  </Grid>
-                  <Grid item xs={12} sm={6} md={3}>
-                    <TextField
-                      fullWidth
-                      label="Оборудование"
-                      value={equipmentSearch}
-                      onChange={(e) => setEquipmentSearch(e.target.value)}
-                      placeholder="Поиск по оборудованию..."
-                    />
-                  </Grid>
-                </Grid>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(5, 1fr)' },
+                    gap: 2,
+                    alignItems: 'center',
+                  }}
+                >
+                  <DatePicker
+                    label="Дата от"
+                    value={equipmentStartDate}
+                    onChange={setEquipmentStartDate}
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                  />
+                  <DatePicker
+                    label="Дата до"
+                    value={equipmentEndDate}
+                    onChange={setEquipmentEndDate}
+                    renderInput={(params) => <TextField {...params} fullWidth />}
+                  />
+                  <FormControl fullWidth>
+                    <InputLabel>Пользователь</InputLabel>
+                    <Select
+                      value={equipmentSelectedUser}
+                      onChange={(e) => setEquipmentSelectedUser(e.target.value)}
+                      label="Пользователь"
+                    >
+                      <MenuItem value="">Все пользователи</MenuItem>
+                      {uniqueFullNames.map((name) => (
+                        <MenuItem key={name} value={name}>
+                          {name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <Autocomplete
+                    multiple
+                    disableCloseOnSelect
+                    options={sortedEquipmentNames}
+                    value={equipmentNamesSelected}
+                    onChange={(_, newValue) => setEquipmentNamesSelected(newValue)}
+                    renderTags={(value) => (
+                      value.length ? (
+                        <Box sx={{ ml: 0.5, fontWeight: 600, color: 'text.primary' }}>
+                          {`Выбрано ${value.length}`}
+                        </Box>
+                      ) : null
+                    )}
+                    renderOption={(props, option, { selected }) => (
+                      <li {...props}>
+                        <Checkbox style={{ marginRight: 8 }} checked={selected} />
+                        {option}
+                      </li>
+                    )}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        fullWidth
+                        label="Оборудование"
+                        placeholder={equipmentNamesSelected.length ? '' : 'Начните ввод...'}
+                      />
+                    )}
+                  />
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <Button startIcon={<RestartAltIcon />} variant="outlined" onClick={handleResetEquipmentFilters}>
+                      Сбросить
+                    </Button>
+                  </Box>
+                </Box>
               </CardContent>
             </Card>
 
-            {/* Статистика по оборудованию */}
-            {equipmentFromFilteredOrders.length > 0 && (
-              <Card>
-                <CardHeader title="Статистика по оборудованию" />
-                <CardContent>
-                  {equipmentFromFilteredOrders.map((equipment, index) => (
-                    <Box key={index} sx={{ mb: 2 }}>
-                      <Typography variant="h6" sx={{ mb: 1 }}>
-                        {equipment.name}
-                      </Typography>
-                      <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
-                        <Chip 
-                          label={`Всего: ${equipment.totalQuantity}`} 
-                          color="primary" 
-                          size="small" 
-                        />
-                        <Chip 
-                          label={`Заказов: ${equipment.orders.length}`} 
-                          color="secondary" 
-                          size="small" 
-                        />
-                      </Box>
-                      <Box sx={{ ml: 2 }}>
-                    {equipment.orders.map((order, idx) => (
-                      <Typography
-                        key={idx}
-                        variant="body2"
-                        sx={{ mb: 0.5, cursor: 'pointer', textDecoration: 'underline' }}
-                        onClick={() => handleEquipmentOrderClick(order.orderId)}
-                      >
-                        Заказ #{order.orderId} - {order.quantity} шт. ({formatDate(order.date)}) - {order.fullName}
-                      </Typography>
+            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'flex-end' }}>
+              <Stack direction="row" spacing={1}>
+                <Chip 
+                  label={`Найдено заказов: ${equipmentEntries.length}`} 
+                  variant="outlined"
+                  color="default"
+                />
+                {equipmentNamesSelected.length > 0 && (
+                  <Chip 
+                    label={`Итого: ${totalEquipmentQuantity} шт.`} 
+                    color="primary"
+                    variant="filled"
+                  />
+                )}
+              </Stack>
+            </Box>
+
+            {equipmentEntries.length > 0 && (
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Дата</TableCell>
+                      <TableCell>Оборудование</TableCell>
+                      <TableCell>Кол-во</TableCell>
+                      <TableCell>Пользователь</TableCell>
+                      <TableCell>Заказ</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {equipmentEntries.map((e, idx) => (
+                      <TableRow key={`${e.orderId}-${idx}`} hover>
+                        <TableCell>{formatDate(e.date)}</TableCell>
+                        <TableCell>{e.name}</TableCell>
+                        <TableCell>{e.quantity}</TableCell>
+                        <TableCell>{e.fullName}</TableCell>
+                        <TableCell>
+                          <Button variant="text" size="small" onClick={() => handleEquipmentOrderClick(e.orderId)}>
+                            Открыть заказ #{e.orderId}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                      </Box>
-                      {index < equipmentFromFilteredOrders.length - 1 && <Divider sx={{ mt: 2 }} />}
-                    </Box>
-                  ))}
-                </CardContent>
-              </Card>
+                  </TableBody>
+                </Table>
+              </TableContainer>
             )}
 
-            {equipmentFromFilteredOrders.length === 0 && (
+            {equipmentEntries.length === 0 && (
               <Typography variant="body1" sx={{ textAlign: 'center', mt: 3 }}>
                 Оборудование не найдено
               </Typography>

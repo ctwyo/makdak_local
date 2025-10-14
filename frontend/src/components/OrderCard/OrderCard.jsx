@@ -222,7 +222,7 @@ const OrderCard = ({
           }}
         >
           <Typography variant="h6" component="h2" mb={2}>
-            {firstName}
+            {fullName || `${firstName} ${lastName}`}
           </Typography>
 
           {isEditing ? (

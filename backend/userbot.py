@@ -29,7 +29,7 @@ USERBOT_PORT = int(os.environ.get("USERBOT_PORT", "4000"))
 
 TRIGGERS = {
     "Новый заказ от": "zakaz",
-    "@хочу": "zakaz",
+    # "@хочу": "zakaz",
     "@монтаж": "montazh",
 }
 
@@ -98,7 +98,8 @@ def parse_order_message(message: str, action: str = None) -> Optional[dict]:
         lower_line = line.lower()
 
         if header_match:
-            full_name = header_match.group(1).strip().rstrip(".")
+            # Сохраняем точку в конце (если есть) у ФИО из шапки
+            full_name = header_match.group(1).strip()
             order_start_idx = idx + 1
             continue
 
@@ -113,8 +114,8 @@ def parse_order_message(message: str, action: str = None) -> Optional[dict]:
             continue
 
         if not full_name:
-            # Для @хочу не парсим имя из строк, имя берется из users.json
-            if action == "zakaz":
+            # Для @хочу и @монтаж не парсим имя из строк, имя берется отдельно
+            if action in ("zakaz", "montazh"):
                 continue
             # Для других случаев парсим имя из первой строки
             full_name = line.rstrip(".")
@@ -407,7 +408,9 @@ async def handle_new_message(event: events.NewMessage.Event):
     full_name_from_users = get_user_full_name(user_id, username) if user_id else None
     
     # Определяем тип сообщения по наличию parsed_full_name
-    if parsed_full_name:
+    if action == "montazh":
+        effective_full_name = "МОНТАЖ"
+    elif parsed_full_name:
         # Это сообщение с шапкой "Новый заказ от" - используем имя из шапки
         effective_full_name = parsed_full_name
     else:
