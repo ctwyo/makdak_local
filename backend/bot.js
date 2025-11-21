@@ -1,178 +1,216 @@
-import { Telegraf } from "telegraf";
+import { Telegraf, Markup } from "telegraf";
 import axios from "axios";
 import dotenv from "dotenv";
-import { createOrGetChat } from "./db.js";
 import cron from "node-cron";
-import { registerTsdHandlers } from "./get_tsd.js";
-dotenv.config();
-// const localIP = getLocalAddress();
-const PORT = 3000;
-const SERVER_URL = `http://localhost:${PORT}`;
+import { createOrGetChat } from "./db.js";
+import { google } from "googleapis";
 
 dotenv.config();
+
+// ===============================
+// Конфиг
+// ===============================
+const PORT = 3000;
+const SERVER_URL = `http://localhost:${PORT}`;
 const TOKEN = process.env.BOT_TOKEN;
+
+const SPREADSHEET_ID = "1eCC7F_KBfpyvZOj3DWiRmAZ1hlv8pw5vLxFKlsIiXbk";
+const CREDENTIALS_PATH = "./get-ready-tsd.json";
+
+// ===============================
+// Инициализация бота
+// ===============================
 export const bot = new Telegraf(TOKEN);
 
 let messageSent = false;
+
+// ===============================
+// Отправка сообщений из сервера
+// ===============================
 export async function sendMessageToTelegram(topicId, chatId, message) {
-  console.log(`messageSent ${messageSent}`);
+  if (messageSent) return;
 
-  console.log(
-    `bot send message to ${topicId}, chatId ${chatId}, text ${message}`,
-  );
-
-  if (messageSent) {
-    console.log("Message already sent");
-    return;
-  }
+  messageSent = true;
+  setTimeout(() => (messageSent = false), 5000);
 
   try {
-    // await bot.telegram.sendMessage(message, chatId, {
-    //   reply_to_message_id: topicId,
-    // });
-    // messageSent = true;
-    // await bot.telegram.sendMessage(message, chatId, {
-    //   reply_to_message_id: topicId,
-    // });
+    await bot.telegram.sendMessage(chatId, message, {
+      reply_to_message_id: topicId || undefined,
+    });
   } catch (err) {
-    console.error("Failed to send message by bot", err);
-  } finally {
-    setTimeout(() => {
-      messageSent = false;
-    }, 5000);
+    console.error("Failed to send message by bot:", err);
   }
 }
 
+export async function sendBotNotification(chatId, message, messageId) {
+  try {
+    await bot.telegram.sendMessage(chatId, message, {
+      reply_to_message_id: messageId || undefined,
+    });
+  } catch (err) {
+    console.error("Ошибка при отправке уведомления:", err);
+  }
+}
+
+// ===============================
+// Главная клавиатура
+// ===============================
+const mainKeyboard = Markup.keyboard([["ТСД"]])
+  .resize()
+  .persistent();
+
+// ===============================
+// /start
+// ===============================
 bot.start(async (ctx) => {
   const chat = ctx.chat;
-  const chatId = ctx.id;
-  const chatTitle = ctx.title;
+
+  await ctx.reply("Бот запущен", mainKeyboard);
+
   if (chat.type === "group" || chat.type === "supergroup") {
-    createOrGetChat(chatId, chatTitle);
-    console.log(`added to db ${chatId} ${chatTitle}`);
+    await createOrGetChat(chat.id, chat.title);
   }
 });
 
+// ===============================
+// /help
+// ===============================
+bot.help(async (ctx) => {
+  await ctx.reply(
+    "Команды:\n" +
+      "@хочу — заказ\n" +
+      "@монтаж — монтаж\n" +
+      "ТСД — показать готовые ТСД\n" +
+      "/start — меню",
+    mainKeyboard
+  );
+});
+
+// ===============================
+// Триггеры заказов
+// ===============================
 const triggers = {
   "@хочу": "zakaz",
   "@монтаж": "montazh",
 };
 
-bot.help(async (ctx) => {
-  const instructionText = `📜 Данный помощник создан для соблюдения порядка заказов, 
-дальнейшего просмотра и анализа данных, а также исключения случаев несвоевременной сборки и потери.
-1️⃣ Для заказа оборудования, нужно поставить приставку @хoчу
-2️⃣ Для заказа монтажа, нужно поставить приставку @мoнтаж
-3️⃣ Инструкция вызывается командой /help`;
+// ===============================
+// ТСД — обработка Google Sheets
+// ===============================
+bot.hears("ТСД", async (ctx) => {
+  if (ctx.chat.type !== "private") {
+    return ctx.reply("Только в личных сообщениях.", mainKeyboard);
+  }
 
-  const imageUrl = "./instruction.jpg"; // Укажите путь к изображению
+  const msg = await ctx.reply("Собираю данные...");
+
   try {
-    await ctx.replyWithPhoto(
-      { source: imageUrl },
-      { caption: instructionText },
-    );
-  } catch (error) {
-    console.error("Ошибка при отправке инструкции:", error);
-    ctx.reply("⚠️ Не удалось отправить инструкцию. Попробуйте позже.");
+    const stats = await fetchTsdStats();
+    await ctx.deleteMessage(msg.message_id).catch(() => {});
+    await ctx.reply(formatTsdStats(stats), mainKeyboard);
+  } catch (err) {
+    await ctx.deleteMessage(msg.message_id).catch(() => {});
+    await ctx.reply("Не удалось получить данные.", mainKeyboard);
   }
 });
 
+// ===============================
+// Обработка триггеров
+// ===============================
 bot.on("text", async (ctx) => {
   const text = ctx.message.text || "";
-  const chatId = ctx.chat.id;
-  const messageId = ctx.message.message_id;
-  const firstName = ctx.from.first_name || "Unknown";
-  const lastName = ctx.from.last_name || "";
-  const userId = ctx.from.id;
-  const userName = ctx.from.username;
 
-  // let chatTitle = "";
-  let topicId = 0;
-  const chatTitle = ctx.chat.title;
-
-  // if (ctx.chat.type === "group" || ctx.chat.type === "supergroup") {
-  //   if (ctx.message.is_topic_message) {
-  //     topicId = ctx.message.message_thread_id;
-  //     chatTitle = ctx.message.chat.title;
-  //   } else {
-  //     chatTitle = "";
-  //   }
-  // }
-  console.log(`chatTitle ${chatTitle}`);
-  // Проверка наличия триггера
   const trigger = Object.keys(triggers).find((t) =>
-    new RegExp(t, "gi").test(text),
+    new RegExp(t, "gi").test(text)
   );
 
-  if (trigger) {
-    const action = triggers[trigger];
-    const triggerRegex = new RegExp(`\\s*${trigger}\\s*`, "gi");
-    const cleanedText = text.replace(triggerRegex, "").trim();
+  if (!trigger) return;
 
-    if (cleanedText.length > 0) {
-      try {
-        const payload = {
-          text: cleanedText,
-          firstName: firstName,
-          lastName: lastName,
-          chatId: chatId,
-          messageId: messageId,
-          action: action,
-          fromTelegram: true,
-          userId: userId,
-          chatTitle: chatTitle,
-          topicId: topicId,
-          userName: userName,
-        };
+  const cleaned = text.replace(new RegExp(trigger, "gi"), "").trim();
+  if (!cleaned) {
+    return ctx.reply("⚠️ Напишите текст после триггера.", mainKeyboard);
+  }
 
-        console.log(`payload bot: ${JSON.stringify(payload)}`);
+  const payload = {
+    text: cleaned,
+    firstName: ctx.from.first_name || "",
+    lastName: ctx.from.last_name || "",
+    userId: ctx.from.id,
+    userName: ctx.from.username || "",
+    chatId: ctx.chat.id,
+    chatTitle: ctx.chat.title || "",
+    messageId: ctx.message.message_id,
+    topicId: 0,
+    action: triggers[trigger],
+    fromTelegram: true,
+  };
 
-        const response = await axios.post(`${SERVER_URL}/new-order`, payload);
-
-        // Вместо ответа текстом отправляем смайлик на триггер
-        // await ctx.react("🖕");
-        await ctx.react("✍");
-      } catch (error) {
-        console.error("Ошибка при создании заказа:", error);
-        await ctx.reply("⚠️ Ошибка при создании заказа. Попробуйте позже.");
-      }
-    } else {
-      await ctx.reply(
-        "⚠️ Сообщение содержит только ключевое слово. Уточните запрос.",
-        { reply_to_message_id: messageId },
-      );
-    }
+  try {
+    await axios.post(`${SERVER_URL}/new-order`, payload);
+    await ctx.react("✍");
+  } catch (err) {
+    console.error("Ошибка создания заказа:", err);
+    await ctx.reply("⚠️ Ошибка при создании заказа.", mainKeyboard);
   }
 });
 
-export const sendBotNotification = async (bot, chatId, message, messageId) => {
-  console.time("Отправка нового статуса в боте");
-  try {
-    await bot.telegram.sendMessage(chatId, message, {
-      reply_to_message_id: messageId,
-    });
-    console.log("Уведомление успешно отправлено через бота.");
-    console.timeEnd("Отправка нового статуса в боте");
-  } catch (error) {
-    console.error("Ошибка при отправке уведомления:", error);
-  }
-};
+// ===============================
+// Google Sheets
+// ===============================
+function getSheetsClient() {
+  const auth = new google.auth.GoogleAuth({
+    keyFile: CREDENTIALS_PATH,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  });
+  return google.sheets({ version: "v4", auth });
+}
 
+async function fetchTsdStats() {
+  const sheets = getSheetsClient();
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "A:Z",
+  });
+
+  const rows = res.data.values || [];
+  const stats = {};
+
+  for (const row of rows) {
+    const model = (row[7] || "").trim(); // колонка H
+    if (!model) continue;
+    stats[model] = (stats[model] || 0) + 1;
+  }
+
+  return stats;
+}
+
+function formatTsdStats(stats) {
+  const entries = Object.entries(stats).sort(
+    ([a, ca], [b, cb]) => cb - ca || a.localeCompare(b)
+  );
+
+  if (!entries.length) return "Ничего не найдено.";
+
+  return (
+    "ТСД в наличии:\n\n" +
+    entries.map(([m, c]) => `${m}: ${c}`).join("\n")
+  );
+}
+
+// ===============================
+// ПЛАНИРОВЩИК
+// ===============================
 cron.schedule("0 14 * * *", async () => {
   const chatId = "-1002105456496";
-  const message = "Обед! 🍔";
-
   try {
-    await bot.telegram.sendMessage(chatId, message, {
+    await bot.telegram.sendMessage(chatId, "Обед! 🍔", {
       reply_to_message_id: 3463,
     });
-  } catch (error) {
-    console.error("Ошибка при отправке уведомления обеда:", error);
-  }
+  } catch {}
 });
 
-registerTsdHandlers(bot)
-
-bot.launch().then(() => {
-  console.log("Бот запущен ✅");
-});
+// ===============================
+// Запуск
+// ===============================
+bot.launch().then(() => console.log("Бот запущен ✅"));
