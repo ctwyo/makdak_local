@@ -117,7 +117,7 @@ bot.hears("ТСД", async (ctx) => {
   const msg = await ctx.reply("Собираю данные...");
 
   try {
-    const stats = await fetchTsdStats();
+    const stats = await fetchTsdStats(ctx.from?.username);
     await ctx.deleteMessage(msg.message_id).catch(() => {});
     await ctx.reply(formatTsdStats(stats), mainKeyboard);
   } catch (err) {
@@ -184,9 +184,11 @@ function getSheetsClient() {
   return google.sheets({ version: "v4", auth });
 }
 
-async function fetchTsdStats() {
+async function fetchTsdStats(requestedBy) {
     const now = Date.now();
-  
+    console.log(`fetchTsdStats requested by ${requestedBy || "unknown"}`);
+    console.log("cachedStats", cachedStats);
+    console.log("cachedAt", cachedAt);
     // --- Если кэш актуален, возвращаем его ---
     if (cachedStats && now - cachedAt < CACHE_TTL) {
       return cachedStats;
