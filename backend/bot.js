@@ -42,15 +42,27 @@ export async function sendMessageToTelegram(topicId, chatId, message) {
   }
 }
 
-export async function sendBotNotification(chatId, message, messageId) {
-  try {
-    await bot.telegram.sendMessage(chatId, message, {
-      reply_to_message_id: messageId || undefined,
-    });
-  } catch (err) {
-    console.error("Ошибка при отправке уведомления:", err);
-  }
-}
+// export async function sendBotNotification(chatId, message, messageId) {
+//   try {
+//     await bot.telegram.sendMessage(chatId, message, {
+//       reply_to_message_id: messageId || undefined,
+//     });
+//   } catch (err) {
+//     console.error("Ошибка при отправке уведомления:", err);
+//   }
+// }
+export const sendBotNotification = async (bot, chatId, message, messageId) => {
+    console.time("Отправка нового статуса в боте");
+    try {
+      await bot.telegram.sendMessage(chatId, message, {
+        reply_to_message_id: messageId,
+      });
+      console.log("Уведомление успешно отправлено через бота.");
+      console.timeEnd("Отправка нового статуса в боте");
+    } catch (error) {
+      console.error("Ошибка при отправке уведомления:", error);
+    }
+  };
 
 // ===============================
 // Главная клавиатура
