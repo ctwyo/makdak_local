@@ -3,6 +3,7 @@ import axios from "axios";
 import dotenv from "dotenv";
 import { createOrGetChat } from "./db.js";
 import cron from "node-cron";
+import { registerTsdHandlers } from "./get_tsd.js";
 dotenv.config();
 // const localIP = getLocalAddress();
 const PORT = 3000;
@@ -169,6 +170,8 @@ cron.schedule("0 14 * * *", async () => {
     console.error("Ошибка при отправке уведомления обеда:", error);
   }
 });
+
+registerTsdHandlers(bot)
 
 bot.launch().then(() => {
   console.log("Бот запущен ✅");

@@ -21,6 +21,11 @@ import http from "http";
 import cron from "node-cron";
 import axios from "axios";
 
+// bot.launch().then(() => {
+//   console.log("Бот запущен ✅");
+// });
+
+
 const app = express();
 // Указываем порт
 const PORT = 3000;
@@ -454,32 +459,32 @@ cron.schedule("00 10 * * 1,4", async () => {
 
 let alreadySent16 = false;
 
-cron.schedule("00 16 * * *", async () => {
-  if (alreadySent16) return;
+// cron.schedule("00 16 * * *", async () => {
+//   if (alreadySent16) return;
 
-  alreadySent16 = true;
-  setTimeout(() => {
-    alreadySent16 = false;
-  }, 60 * 1000); // сброс через минуту
+//   alreadySent16 = true;
+//   setTimeout(() => {
+//     alreadySent16 = false;
+//   }, 60 * 1000);
 
-  const payload = {
-    text: "Отнести ваську из отк акты",
-    userId: "auto-cron",
-    fromTelegram: false,
-    action: "zakaz",
-    fullName: "Чиназес",
-  };
+//   const payload = {
+//     text: "Отнести ваську из отк акты",
+//     userId: "auto-cron",
+//     fromTelegram: false,
+//     action: "zakaz",
+//     fullName: "Чиназес",
+//   };
 
-  try {
-    const response = await axios.post(
-      "http://localhost:3000/new-order",
-      payload,
-    );
-    console.log("Авто-заказ (16:00) отправлен:", response.data);
-  } catch (error) {
-    console.error("Ошибка при создании авто-заказа (16:00):", error.message);
-  }
-});
+//   try {
+//     const response = await axios.post(
+//       "http://localhost:3000/new-order",
+//       payload,
+//     );
+//     console.log("Авто-заказ (16:00) отправлен:", response.data);
+//   } catch (error) {
+//     console.error("Ошибка при создании авто-заказа (16:00):", error.message);
+//   }
+// });
 
 
 // app.listen(PORT, () => {
