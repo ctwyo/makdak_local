@@ -167,6 +167,13 @@ bot.on("text", async (ctx) => {
 });
 
 // ===============================
+// КЭШ ДЛЯ GOOGLE SHEETS
+// ===============================
+let cachedStats = null;
+let cachedAt = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+// ===============================
 // Google Sheets
 // ===============================
 function getSheetsClient() {
@@ -178,24 +185,37 @@ function getSheetsClient() {
 }
 
 async function fetchTsdStats() {
-  const sheets = getSheetsClient();
-
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId: SPREADSHEET_ID,
-    range: "A:Z",
-  });
-
-  const rows = res.data.values || [];
-  const stats = {};
-
-  for (const row of rows) {
-    const model = (row[7] || "").trim(); // колонка H
-    if (!model) continue;
-    stats[model] = (stats[model] || 0) + 1;
+    const now = Date.now();
+  
+    // --- Если кэш актуален, возвращаем его ---
+    if (cachedStats && now - cachedAt < CACHE_TTL) {
+      return cachedStats;
+    }
+  
+    // --- Иначе делаем реальный запрос ---
+    const sheets = getSheetsClient();
+  
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "A:Z",
+    });
+  
+    const rows = res.data.values || [];
+    const stats = {};
+  
+    for (const row of rows) {
+      const model = (row[7] || "").trim(); // колонка H
+      if (!model) continue;
+      stats[model] = (stats[model] || 0) + 1;
+    }
+  
+    // --- Сохраняем в кэш ---
+    cachedStats = stats;
+    cachedAt = now;
+  
+    return stats;
   }
-
-  return stats;
-}
+  
 
 function formatTsdStats(stats) {
   const entries = Object.entries(stats).sort(
