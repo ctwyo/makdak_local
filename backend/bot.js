@@ -42,47 +42,57 @@ export async function sendMessageToTelegram(topicId, chatId, message) {
   }
 }
 
-// export async function sendBotNotification(chatId, message, messageId) {
-//   try {
-//     await bot.telegram.sendMessage(chatId, message, {
-//       reply_to_message_id: messageId || undefined,
-//     });
-//   } catch (err) {
-//     console.error("Ошибка при отправке уведомления:", err);
-//   }
-// }
 export const sendBotNotification = async (bot, chatId, message, messageId) => {
-    console.time("Отправка нового статуса в боте");
-    try {
-      await bot.telegram.sendMessage(chatId, message, {
-        reply_to_message_id: messageId,
-      });
-      console.log("Уведомление успешно отправлено через бота.");
-      console.timeEnd("Отправка нового статуса в боте");
-    } catch (error) {
-      console.error("Ошибка при отправке уведомления:", error);
-    }
-  };
+  console.time("Отправка нового статуса в боте");
+  try {
+    await bot.telegram.sendMessage(chatId, message, {
+      reply_to_message_id: messageId,
+    });
+    console.log("Уведомление успешно отправлено через бота.");
+    console.timeEnd("Отправка нового статуса в боте");
+  } catch (error) {
+    console.error("Ошибка при отправке уведомления:", error);
+  }
+};
 
 // ===============================
-// Главная клавиатура
+// INLINE "ТСД" КЛАВИАТУРА
 // ===============================
-const mainKeyboard = Markup.keyboard([["ТСД"]]).resize();
-
-const getKeyboard = (ctx) =>
-  ctx.chat?.type === "private"
-    ? mainKeyboard
-    : { reply_markup: { remove_keyboard: true } };
+const inlineTsdButton = Markup.inlineKeyboard([
+  Markup.button.callback("ТСД", "tsd_show")
+]);
 
 // ===============================
 // /start
 // ===============================
+// bot.start(async (ctx) => {
+//   const chat = ctx.chat;
+
+//   if (chat.type === "private") {
+//     await ctx.reply("Привет!", inlineTsdButton);
+//   } else {
+//     await ctx.reply("Привет!");
+//     await createOrGetChat(chat.id, chat.title);
+//   }
+// });
+
 bot.start(async (ctx) => {
   const chat = ctx.chat;
 
-  await ctx.reply("Привет!", getKeyboard(ctx));
+  if (chat.type === "private") {
+    // Удаляем старую reply-клавиатуру НАВСЕГДА
+    await ctx.reply(" ", {
+      reply_markup: { remove_keyboard: true }
+    });
 
-  if (chat.type === "group" || chat.type === "supergroup") {
+    // Показываем inline кнопку
+    await ctx.reply("Привет!", inlineTsdButton);
+  } else {
+    await ctx.reply(" ", {
+      reply_markup: { remove_keyboard: true }
+    });
+
+    await ctx.reply("Привет!");
     await createOrGetChat(chat.id, chat.title);
   }
 });
@@ -95,8 +105,7 @@ bot.help(async (ctx) => {
     "Команды:\n" +
       "@хочу — заказ\n" +
       "@монтаж — монтаж\n" +
-      "ТСД — показать готовые ТСД\n" +
-    getKeyboard(ctx)
+      "ТСД — показать готовые ТСД\n"
   );
 });
 
@@ -109,23 +118,23 @@ const triggers = {
 };
 
 // ===============================
-// ТСД — обработка Google Sheets
+// INLINE: ТСД — обработка Google Sheets
 // ===============================
-bot.hears("ТСД", async (ctx) => {
+bot.action("tsd_show", async (ctx) => {
   if (ctx.chat.type !== "private") {
-    // return ctx.reply("Только в личных сообщениях.", mainKeyboard);
-    return
+    return ctx.answerCbQuery(); // в группе — тишина
   }
 
+  await ctx.answerCbQuery();
   const msg = await ctx.reply("Собираю данные...");
 
   try {
     const stats = await fetchTsdStats(ctx.from?.username);
     await ctx.deleteMessage(msg.message_id).catch(() => {});
-    await ctx.reply(formatTsdStats(stats), getKeyboard(ctx));
-  } catch (err) {
+    await ctx.reply(formatTsdStats(stats), inlineTsdButton);
+  } catch {
     await ctx.deleteMessage(msg.message_id).catch(() => {});
-    await ctx.reply("Не удалось получить данные.", getKeyboard(ctx));
+    await ctx.reply("Не удалось получить данные.", inlineTsdButton);
   }
 });
 
@@ -143,7 +152,7 @@ bot.on("text", async (ctx) => {
 
   const cleaned = text.replace(new RegExp(trigger, "gi"), "").trim();
   if (!cleaned) {
-    return ctx.reply("⚠️ Напишите текст после триггера.", getKeyboard(ctx));
+    return ctx.reply("⚠️ Напишите текст после триггера.");
   }
 
   const payload = {
@@ -165,7 +174,7 @@ bot.on("text", async (ctx) => {
     await ctx.react("✍");
   } catch (err) {
     console.error("Ошибка создания заказа:", err);
-    await ctx.reply("⚠️ Ошибка при создании заказа.", getKeyboard(ctx));
+    await ctx.reply("⚠️ Ошибка при создании заказа.");
   }
 });
 
@@ -188,39 +197,32 @@ function getSheetsClient() {
 }
 
 async function fetchTsdStats(requestedBy) {
-    const now = Date.now();
-    console.log(`fetchTsdStats requested by ${requestedBy || "unknown"}`);
-    console.log("cachedStats", cachedStats);
-    console.log("cachedAt", cachedAt);
-    // --- Если кэш актуален, возвращаем его ---
-    if (cachedStats && now - cachedAt < CACHE_TTL) {
-      return cachedStats;
-    }
-  
-    // --- Иначе делаем реальный запрос ---
-    const sheets = getSheetsClient();
-  
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: "A:Z",
-    });
-  
-    const rows = res.data.values || [];
-    const stats = {};
-  
-    for (const row of rows) {
-      const model = (row[7] || "").trim(); // колонка H
-      if (!model) continue;
-      stats[model] = (stats[model] || 0) + 1;
-    }
-  
-    // --- Сохраняем в кэш ---
-    cachedStats = stats;
-    cachedAt = now;
-  
-    return stats;
+  const now = Date.now();
+  if (cachedStats && now - cachedAt < CACHE_TTL) {
+    return cachedStats;
   }
-  
+
+  const sheets = getSheetsClient();
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "A:Z",
+  });
+
+  const rows = res.data.values || [];
+  const stats = {};
+
+  for (const row of rows) {
+    const model = (row[7] || "").trim(); // колонка H
+    if (!model) continue;
+    stats[model] = (stats[model] || 0) + 1;
+  }
+
+  cachedStats = stats;
+  cachedAt = now;
+
+  return stats;
+}
 
 function formatTsdStats(stats) {
   const entries = Object.entries(stats).sort(
@@ -250,11 +252,4 @@ cron.schedule("0 14 * * *", async () => {
 // ===============================
 // Запуск
 // ===============================
-// bot.launch().then(() => console.log("Бот запущен ✅"));
-bot.launch().then(async () => {
-  console.log("Бот запущен");
-
-  await bot.telegram.sendMessage("-1002105456496", " ", {
-    reply_markup: { remove_keyboard: true }
-  });
-});
+bot.launch().then(() => console.log("Бот запущен ✅"));
