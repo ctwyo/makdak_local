@@ -1,4 +1,4 @@
-import { Telegraf, Markup } from "telegraf";
+﻿import { Telegraf, Markup } from "telegraf";
 import axios from "axios";
 import dotenv from "dotenv";
 import cron from "node-cron";
@@ -71,13 +71,18 @@ const mainKeyboard = Markup.keyboard([["ТСД"]])
   .resize()
   .persistent();
 
+const getKeyboard = (ctx) =>
+  ctx.chat?.type === "private"
+    ? mainKeyboard
+    : { reply_markup: { remove_keyboard: true } };
+
 // ===============================
 // /start
 // ===============================
 bot.start(async (ctx) => {
   const chat = ctx.chat;
 
-  await ctx.reply("Бот запущен", mainKeyboard);
+  // await ctx.reply("Бот запущен", getKeyboard(ctx));
 
   if (chat.type === "group" || chat.type === "supergroup") {
     await createOrGetChat(chat.id, chat.title);
@@ -94,7 +99,7 @@ bot.help(async (ctx) => {
       "@монтаж — монтаж\n" +
       "ТСД — показать готовые ТСД\n" +
       "/start — меню",
-    mainKeyboard
+    getKeyboard(ctx)
   );
 });
 
@@ -120,10 +125,10 @@ bot.hears("ТСД", async (ctx) => {
   try {
     const stats = await fetchTsdStats(ctx.from?.username);
     await ctx.deleteMessage(msg.message_id).catch(() => {});
-    await ctx.reply(formatTsdStats(stats), mainKeyboard);
+    await ctx.reply(formatTsdStats(stats), getKeyboard(ctx));
   } catch (err) {
     await ctx.deleteMessage(msg.message_id).catch(() => {});
-    await ctx.reply("Не удалось получить данные.", mainKeyboard);
+    await ctx.reply("Не удалось получить данные.", getKeyboard(ctx));
   }
 });
 
@@ -141,7 +146,7 @@ bot.on("text", async (ctx) => {
 
   const cleaned = text.replace(new RegExp(trigger, "gi"), "").trim();
   if (!cleaned) {
-    return ctx.reply("⚠️ Напишите текст после триггера.", mainKeyboard);
+    return ctx.reply("⚠️ Напишите текст после триггера.", getKeyboard(ctx));
   }
 
   const payload = {
@@ -163,7 +168,7 @@ bot.on("text", async (ctx) => {
     await ctx.react("✍");
   } catch (err) {
     console.error("Ошибка создания заказа:", err);
-    await ctx.reply("⚠️ Ошибка при создании заказа.", mainKeyboard);
+    await ctx.reply("⚠️ Ошибка при создании заказа.", getKeyboard(ctx));
   }
 });
 
