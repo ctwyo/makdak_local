@@ -80,7 +80,7 @@ const getKeyboard = (ctx) =>
 bot.start(async (ctx) => {
   const chat = ctx.chat;
 
-  // await ctx.reply("Бот запущен", getKeyboard(ctx));
+  await ctx.reply("Привет!", getKeyboard(ctx));
 
   if (chat.type === "group" || chat.type === "supergroup") {
     await createOrGetChat(chat.id, chat.title);
@@ -96,7 +96,6 @@ bot.help(async (ctx) => {
       "@хочу — заказ\n" +
       "@монтаж — монтаж\n" +
       "ТСД — показать готовые ТСД\n" +
-      "/start — меню",
     getKeyboard(ctx)
   );
 });
@@ -251,4 +250,11 @@ cron.schedule("0 14 * * *", async () => {
 // ===============================
 // Запуск
 // ===============================
-bot.launch().then(() => console.log("Бот запущен ✅"));
+// bot.launch().then(() => console.log("Бот запущен ✅"));
+bot.launch().then(async () => {
+  console.log("Бот запущен");
+
+  await bot.telegram.sendMessage("-1002105456496", " ", {
+    reply_markup: { remove_keyboard: true }
+  });
+});
