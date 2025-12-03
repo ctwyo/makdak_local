@@ -65,17 +65,34 @@ const inlineTsdButton = Markup.inlineKeyboard([
 // ===============================
 // /start
 // ===============================
+// bot.start(async (ctx) => {
+//   const chat = ctx.chat;
+
+//   if (chat.type === "private") {
+//     await ctx.reply("Привет!", inlineTsdButton);
+//   } else {
+//     await ctx.reply("Привет!");
+//     await createOrGetChat(chat.id, chat.title);
+//   }
+// });
 bot.start(async (ctx) => {
   const chat = ctx.chat;
 
+  // Всегда удаляем старую reply-клавиатуру
+  await ctx.reply("Бот работает", {
+    reply_markup: { remove_keyboard: true }
+  });
+
+  // Личка — inline
   if (chat.type === "private") {
     await ctx.reply("Привет!", inlineTsdButton);
-  } else {
-    await ctx.reply("Привет!");
-    await createOrGetChat(chat.id, chat.title);
+    return;
   }
-});
 
+  // Группа — только текст
+  await ctx.reply("Привет!");
+  await createOrGetChat(chat.id, chat.title);
+});
 
 
 // ===============================
