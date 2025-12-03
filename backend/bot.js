@@ -36,6 +36,7 @@ export async function sendMessageToTelegram(topicId, chatId, message) {
   try {
     await bot.telegram.sendMessage(chatId, message, {
       reply_to_message_id: topicId || undefined,
+      reply_markup: { remove_keyboard: true }
     });
   } catch (err) {
     console.error("Failed to send message by bot:", err);
@@ -62,19 +63,7 @@ const inlineTsdButton = Markup.inlineKeyboard([
   Markup.button.callback("ТСД", "tsd_show")
 ]);
 
-// ===============================
-// /start
-// ===============================
-// bot.start(async (ctx) => {
-//   const chat = ctx.chat;
 
-//   if (chat.type === "private") {
-//     await ctx.reply("Привет!", inlineTsdButton);
-//   } else {
-//     await ctx.reply("Привет!");
-//     await createOrGetChat(chat.id, chat.title);
-//   }
-// });
 bot.start(async (ctx) => {
   const chat = ctx.chat;
 
@@ -89,8 +78,6 @@ bot.start(async (ctx) => {
     return;
   }
 
-  // Группа — только текст
-  await ctx.reply("Привет!");
   await createOrGetChat(chat.id, chat.title);
 });
 
