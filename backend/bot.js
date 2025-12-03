@@ -67,9 +67,7 @@ export const sendBotNotification = async (bot, chatId, message, messageId) => {
 // ===============================
 // Главная клавиатура
 // ===============================
-const mainKeyboard = Markup.keyboard([["ТСД"]])
-  .resize()
-  .persistent();
+const mainKeyboard = Markup.keyboard([["ТСД"]]).resize();
 
 const getKeyboard = (ctx) =>
   ctx.chat?.type === "private"
