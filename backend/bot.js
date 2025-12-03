@@ -111,7 +111,8 @@ const triggers = {
 // ===============================
 bot.hears("ТСД", async (ctx) => {
   if (ctx.chat.type !== "private") {
-    return ctx.reply("Только в личных сообщениях.", mainKeyboard);
+    // return ctx.reply("Только в личных сообщениях.", mainKeyboard);
+    return
   }
 
   const msg = await ctx.reply("Собираю данные...");
