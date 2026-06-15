@@ -144,7 +144,7 @@ bot.on("text", async (ctx) => {
     text: cleaned,
     firstName: ctx.from.first_name || "",
     lastName: ctx.from.last_name || "",
-    userId: ctx.from.id,
+    userId: String(ctx.from.id),
     userName: ctx.from.username || "",
     chatId: ctx.chat.id,
     chatTitle: ctx.chat.title || "",

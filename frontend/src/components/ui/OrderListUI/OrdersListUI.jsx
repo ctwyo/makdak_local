@@ -23,13 +23,13 @@ const OrderListUI = ({ orders }) => {
     <div className={styles.listWrapper}>
       <ul className={styles.list}>
         {pendingOrders.map((order) => (
-          <Order key={order._id} order={order} />
+          <Order key={order.id} order={order} />
         ))}
       </ul>
 
       <ul className={styles.list}>
         {readyOrders.map((order) => (
-          <Order key={order._id} order={order} />
+          <Order key={order.id} order={order} />
         ))}
       </ul>
       {/* {stripeWidth > 0 && (

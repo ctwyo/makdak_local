@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"import\\('better-sqlite3'\\).then\\(\\({default: Database}\\) => { const db = new Database\\('orders.db'\\); db.prepare\\('UPDATE orderstats SET total = 103 WHERE id = 1'\\).run\\(\\); console.log\\(db.prepare\\('SELECT * FROM orderstats'\\).get\\(\\)\\); }\\)\")",
+      "Bash(pm2 --version)",
+      "Read(//c/dev/montajj/**)",
+      "PowerShell(npm install -g pm2)",
+      "PowerShell(pm2 logs montajj --lines 30 --nostream)",
+      "PowerShell(pm2 logs montajj --lines 15 --nostream)",
+      "PowerShell(pm2 logs montajj --lines 10 --nostream)",
+      "Bash(node -e ' *)",
+      "Bash(pm2 -v)",
+      "Bash(pm2 list *)",
+      "Bash(npm ls *)",
+      "Bash(where pm2-startup *)",
+      "Bash(where pm2-service-install *)",
+      "Bash(pm2 start *)",
+      "Bash(pm2 logs *)",
+      "Bash(pm2 save *)",
+      "Bash(pm2-startup install *)"
+    ],
+    "additionalDirectories": [
+      "C:\\dev\\pm2-start"
+    ]
+  }
+}

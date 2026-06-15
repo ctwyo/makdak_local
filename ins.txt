@@ -1,0 +1,50 @@
+ЗАПУСК ПРОЕКТОВ ЧЕРЕЗ PM2
+==========================
+
+Проекты:
+- makdak-backend  -> backend Express + раздаёт фронт из frontend/dist  -> http://localhost:3000
+- montajj         -> Vite preview (раздаёт собранный dist)             -> http://localhost:4173
+
+--------------------------------------------------
+ПЕРВЫЙ ЗАПУСК (если процессов ещё нет в pm2)
+--------------------------------------------------
+
+1) makdak backend:
+   cd C:\dev\makdak_local\backend
+   pm2 start server.js --name makdak-backend
+
+2) montajj (фронт):
+   cd C:\dev\montajj
+   pm2 start "node_modules/vite/bin/vite.js" --name montajj --interpreter node -- preview --host --port 4173
+
+3) Сохранить список процессов (чтобы восстановился после перезагрузки):
+   pm2 save
+
+--------------------------------------------------
+АВТОЗАПУСК ПОСЛЕ ПЕРЕЗАГРУЗКИ (уже настроено)
+--------------------------------------------------
+Сделано один раз:
+   npm install -g pm2-windows-startup
+   pm2-startup install
+   pm2 save
+
+После входа в Windows pm2 сам поднимет сохранённые процессы.
+ВАЖНО: после любых изменений списка процессов снова делать  pm2 save
+
+--------------------------------------------------
+ПОЛЕЗНЫЕ КОМАНДЫ
+--------------------------------------------------
+pm2 list                  - список процессов и статус
+pm2 logs makdak-backend   - логи backend
+pm2 logs montajj          - логи montajj
+pm2 restart makdak-backend
+pm2 restart montajj
+pm2 stop <name>           - остановить
+pm2 delete <name>         - удалить из pm2 (потом pm2 save)
+pm2 resurrect             - вручную восстановить сохранённые процессы
+
+--------------------------------------------------
+ЕСЛИ ОБНОВИЛИ КОД ФРОНТА
+--------------------------------------------------
+montajj:  cd C:\dev\montajj && npm run build && pm2 restart montajj
+makdak:   cd C:\dev\makdak_local\frontend && npm run build && pm2 restart makdak-backend

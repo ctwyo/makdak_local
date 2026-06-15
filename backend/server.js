@@ -7,11 +7,15 @@ import {
   getAllOrders,
   updateOrderStatus,
   deleteOrder,
-  OrdersStats,
   updateOrderText,
-  Chat,
-  User,
-  Order,
+  getStats,
+  incrementStats,
+  resetMonthlyStats,
+  findUserById,
+  getAllChats,
+  getAllusers,
+  updateUser,
+  deleteUser,
 } from "./db.js";
 import { getLocalAddress } from "./getLocalAddress.js";
 import { bot, sendBotNotification, sendMessageToTelegram } from "./bot.js";
@@ -98,40 +102,27 @@ app.post("/new-order", async (req, res) => {
   }
 
   try {
-    const ordersStats = await OrdersStats.findOne({});
+    const ordersStats = getStats();
 
-    // Если нашли статистику заказов
     if (ordersStats) {
       let totalOrders = 0;
 
-      // В зависимости от действия увеличиваем нужный счетчик
       if (action === "montazh") {
-        const updatedStats = await OrdersStats.findOneAndUpdate(
-          {},
-          { $inc: { totalMontazh: 1 } },
-          { new: true },
-        );
-        console.log(`updatedStats montazh ${updatedStats}`);
-
+        const updatedStats = incrementStats("totalMontazh");
+        console.log(`updatedStats montazh ${JSON.stringify(updatedStats)}`);
         totalOrders = updatedStats.totalMontazh;
       } else {
-        const updatedStats = await OrdersStats.findOneAndUpdate(
-          {},
-          { $inc: { total: 1 } },
-          { new: true },
-        );
-        console.log(`updatedStats total ${updatedStats}`);
-
+        const updatedStats = incrementStats("total");
+        console.log(`updatedStats total ${JSON.stringify(updatedStats)}`);
         totalOrders = updatedStats.total;
       }
 
-      // const newOrderId = totalOrders + 1;
       const newOrderId = totalOrders;
 
       let fullName = "";
       if (fromTelegram) {
         try {
-          const existingUser = await User.findOne({ userId });
+          const existingUser = findUserById(userId);
           if (existingUser) {
             fullName = existingUser.fullName;
           }
@@ -177,23 +168,25 @@ app.post("/new-order", async (req, res) => {
   }
 });
 
+app.get("/stats", (req, res) => {
+  const stats = getStats();
+  if (!stats) return res.status(404).json({ error: "Stats not found" });
+  res.json(stats);
+});
+
 //удаление
 app.delete("/delete-order/:id/", async (req, res) => {
   const { id } = req.params;
   const { userId } = req.body;
 
   try {
-    const order = await Order.findOneAndDelete({ _id: id });
-    if (order) {
-      console.log(`deleted order ${order._id}`);
-    }
-
-    if (!deleteOrder) {
-      // !order
+    const order = await deleteOrder(parseInt(id));
+    if (!order) {
       return res.status(400).json({ error: "Order not found" });
     }
-    broadCast({ type: "delete-order", userId: userId, id: id });
-    res.status(200).json({ id: id });
+    console.log(`deleted order ${order.id}`);
+    broadCast({ type: "delete-order", userId: userId, id: order.id });
+    res.status(200).json({ id: order.id });
   } catch (err) {
     console.error("Failed to delete order", err);
   }
@@ -206,11 +199,7 @@ app.patch("/order/:id/update", async (req, res) => {
 
   if (id) {
     try {
-      const newOrder = await Order.findOneAndUpdate(
-        { _id: id },
-        { status: "ready", updatedAt: Date.now() },
-        { new: true },
-      );
+      const newOrder = await updateOrderStatus(parseInt(id));
 
       console.log(`order fromTelegram: ${newOrder.fromTelegram}`);
 
@@ -277,7 +266,7 @@ app.post("/send-message", async (req, res) => {
 //запрос всех чатов с chatTitle
 app.get("/chats", async (req, res) => {
   try {
-    const chats = await Chat.find({ chatTitle: { $exists: true } });
+    const chats = getAllChats();
     res.status(200).json(chats);
   } catch (error) {
     console.error("Failed to get chats", error);
@@ -288,8 +277,7 @@ app.get("/chats", async (req, res) => {
 //запрос всех курьеров
 app.get("/couriers", async (req, res) => {
   try {
-    // const couriers = await User.find({ role: "courier" });
-    const couriers = await User.find();
+    const couriers = await getAllusers();
 
     res.status(200).json(couriers);
   } catch (error) {
@@ -307,9 +295,7 @@ app.patch("/users/:id", async (req, res) => {
   const updatedData = req.body;
 
   try {
-    const updatedUser = await User.findOneAndUpdate({ userId }, updatedData, {
-      new: true,
-    });
+    const updatedUser = updateUser(userId, updatedData);
     if (!updatedUser) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -323,7 +309,7 @@ app.patch("/users/:id", async (req, res) => {
 app.delete("/users/:id", async (req, res) => {
   const { id } = req.params;
   try {
-    const deletedUser = await User.findOneAndDelete({ userId: id });
+    const deletedUser = deleteUser(id);
     if (!deletedUser) {
       return res.status(404).json({ error: "User not found" });
     } else {
@@ -391,38 +377,17 @@ const getCurrentMonth = () => {
 
 // testCron();
 
-cron.schedule("0 1 * * *", async () => {
+cron.schedule("0 1 * * *", () => {
   try {
     const currentMonth = getCurrentMonth();
-
-    // Получаем текущую запись
-    let stats = await OrdersStats.findOne();
+    const stats = getStats();
     console.log(`currentMonth: ${currentMonth} month: ${stats.month}`);
-    if (stats) {
-      // Если месяц совпадает, ничего не делаем
-      if (stats.month === currentMonth) {
-        console.log(`Месяц ${currentMonth} уже установлен. Ничего не делаем.`);
-        return;
-      } else {
-        // Если месяц изменился — сбрасываем данные
-        stats.total = 0;
-        stats.totalMontazh = 0;
-        stats.month = currentMonth;
-        await stats.save();
-
-        console.log(
-          `Обновлен месяц на ${currentMonth}, сброшены total и totalMontazh.`,
-        );
-      }
-    } else {
-      // Если записи нет, создаём новую
-      await OrdersStats.create({
-        month: currentMonth,
-        total: 0,
-        totalMontazh: 0,
-      });
-      console.log(`Создана новая запись для месяца: ${currentMonth}`);
+    if (stats.month === currentMonth) {
+      console.log(`Месяц ${currentMonth} уже установлен. Ничего не делаем.`);
+      return;
     }
+    resetMonthlyStats(currentMonth);
+    console.log(`Обновлен месяц на ${currentMonth}, сброшены total и totalMontazh.`);
   } catch (error) {
     console.error("Ошибка при обновлении месяца:", error);
   }

@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { NavLink, useNavigate } from "react-router";
 import { selectUserName, setUserName } from "../../features/slices/userSlice";
+import { fetchStats, selectStats } from "../../features/slices/statsSlice";
 import {
   Box,
   Button,
@@ -21,7 +22,12 @@ export const Layout = ({ children }) => {
   const [name, setName] = useState("");
   const dispatch = useDispatch();
   const userName = useSelector(selectUserName);
+  const stats = useSelector(selectStats);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    dispatch(fetchStats());
+  }, [dispatch]);
 
   React.useEffect(() => {
     if (!userName) {
@@ -93,6 +99,19 @@ export const Layout = ({ children }) => {
           </Link>
         </Container>
         <div className={styles.nameContainer}>
+          <div className={styles.statsContainer}>
+            <Typography className={styles.statItem}>
+              Месяц: <span className={styles.statValue}>{stats.month}</span>
+            </Typography>
+            <Typography className={styles.statItem}>
+              Всего заказов:{" "}
+              <span className={styles.statValue}>{stats.total}</span>
+            </Typography>
+            <Typography className={styles.statItem}>
+              Монтажей:{" "}
+              <span className={styles.statValue}>{stats.totalMontazh}</span>
+            </Typography>
+          </div>
           <Typography className={styles.userName}>{userName}</Typography>
           <IconButton
             sx={{ padding: "8px 8px 5px 8px", width: "40px", height: "40px" }}

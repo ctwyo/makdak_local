@@ -54,3 +54,24 @@
 .editButton:focus-within {
   outline: none;
 }
+
+.statsContainer {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+  padding-right: 12px;
+  border-right: 1px solid #ccc;
+  margin-right: 8px;
+}
+
+.statItem {
+  font-size: 0.85rem !important;
+  color: #888;
+  white-space: nowrap;
+}
+
+.statValue {
+  font-weight: bold;
+  color: inherit;
+}

@@ -90,7 +90,8 @@ const DataBase = () => {
             <TableRow>
               <TableCell>№</TableCell>
               <TableCell>Полное имя</TableCell>
-              <TableCell>ID телеграм</TableCell>
+              <TableCell>Username</TableCell>
+              <TableCell>Telegram ID</TableCell>
               <TableCell>Роль</TableCell>
               <TableCell>Действия</TableCell>
             </TableRow>
@@ -118,6 +119,7 @@ const DataBase = () => {
                     )}
                   </TableCell>
                   <TableCell>{courier.userName}</TableCell>
+                  <TableCell>{courier.userId}</TableCell>
                   <TableCell>
                     {isEditing ? (
                       <TextField

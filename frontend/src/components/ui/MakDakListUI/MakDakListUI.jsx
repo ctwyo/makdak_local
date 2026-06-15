@@ -29,13 +29,13 @@ export const MakDakListUI = () => {
       <div className={styles.listWrapper}>
         <ul className={styles.list}>
           {pendingOrders.map((order) => (
-            <MakDakOrder key={order._id} order={order} />
+            <MakDakOrder key={order.id} order={order} />
           ))}
         </ul>
 
         <ul className={styles.list}>
           {readyOrders.map((order) => (
-            <MakDakOrder key={order._id} order={order} />
+            <MakDakOrder key={order.id} order={order} />
           ))}
         </ul>
       </div>

@@ -13,7 +13,7 @@ import OrderCard from "../OrderCard/OrderCard";
 import { createDocument } from "../../helpers/createDocument";
 import { parseOrder } from "../../helpers/parseOrder";
 const Order = ({ order }) => {
-  const { text, id, _id, fullName } = order;
+  const { text, id, fullName } = order;
   const dispatch = useDispatch();
   const [isDeleting, setIsDeleting] = useState(false);
   const isLoading = useSelector(selectOrdersLoading);
@@ -25,7 +25,7 @@ const Order = ({ order }) => {
     event.stopPropagation();
     setIsDeleting(true);
     try {
-      await dispatch(deleteOrderApi(_id)).unwrap();
+      await dispatch(deleteOrderApi(id)).unwrap();
       setIsDeleting(false);
     } catch (err) {
       console.error("Failed to delete order", err);
@@ -35,8 +35,8 @@ const Order = ({ order }) => {
   const handleDone = async (event) => {
     event.stopPropagation();
     try {
-      await dispatch(updateOrderStatusApi(_id)).unwrap();
-      console.log("done", _id);
+      await dispatch(updateOrderStatusApi(id)).unwrap();
+      console.log("done", id);
     } catch (err) {
       console.error("Failed to update order", err);
     }

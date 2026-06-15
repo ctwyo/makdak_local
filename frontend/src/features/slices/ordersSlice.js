@@ -25,7 +25,7 @@ const ordersSlice = createSlice({
     },
     removeOrderFromState: (state, action) => {
       const id = action.payload;
-      state.orders = state.orders.filter((order) => order._id !== id);
+      state.orders = state.orders.filter((order) => order.id !== Number(id));
     },
     updateOrderStatus: (state, action) => {
       const updatedOrder = action.payload;
@@ -80,9 +80,9 @@ const ordersSlice = createSlice({
         state.loading = true;
       })
       .addCase(deleteOrderApi.fulfilled, (state, action) => {
-        const _id = action.payload;
+        const id = action.payload;
         state.loading = false;
-        state.orders = state.orders.filter((order) => order._id !== _id);
+        state.orders = state.orders.filter((order) => order.id !== Number(id));
       })
       .addCase(deleteOrderApi.rejected, (state, action) => {
         state.loading = false;
@@ -95,7 +95,7 @@ const ordersSlice = createSlice({
       .addCase(updateOrderStatusApi.fulfilled, (state, action) => {
         state.loading = false;
         const index = state.orders.findIndex(
-          (order) => order._id === action.payload._id
+          (order) => order.id === action.payload.id
         );
         if (index !== -1) {
           state.orders[index] = action.payload;

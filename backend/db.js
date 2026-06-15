@@ -1,227 +1,150 @@
-import { clear } from "console";
-import mongoose from "mongoose";
-import { stringify } from "querystring";
+import Database from "better-sqlite3";
+import path from "path";
+import { fileURLToPath } from "url";
 
-export const connectDB = async () => {
-  try {
-    await mongoose.connect("mongodb://127.0.0.1:27017/tealpos-orders", {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
-    console.log("MongoDB connected");
-  } catch (err) {
-    console.error("Failed to connect to MongoDB", err);
-    process.exit(1);
-  }
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const db = new Database(path.join(__dirname, "orders.db"));
+db.pragma("journal_mode = WAL");
+db.pragma("foreign_keys = ON");
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS orderstats (
+    id           INTEGER PRIMARY KEY CHECK (id = 1),
+    total        INTEGER NOT NULL DEFAULT 0,
+    totalMontazh INTEGER NOT NULL DEFAULT 0,
+    month        TEXT    NOT NULL DEFAULT ''
+  );
+  INSERT OR IGNORE INTO orderstats (id, total, totalMontazh, month) VALUES (1, 0, 0, '');
+
+  CREATE TABLE IF NOT EXISTS chats (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    chatId    TEXT NOT NULL DEFAULT '',
+    chatTitle TEXT NOT NULL DEFAULT '',
+    topicId   INTEGER UNIQUE
+  );
+
+  CREATE TABLE IF NOT EXISTS orders (
+    id           INTEGER PRIMARY KEY,
+    status       TEXT    NOT NULL DEFAULT 'pending',
+    text         TEXT    NOT NULL DEFAULT '',
+    firstName    TEXT    NOT NULL DEFAULT '',
+    lastName     TEXT    NOT NULL DEFAULT '',
+    userName     TEXT    NOT NULL DEFAULT '',
+    updatedAt    INTEGER NOT NULL DEFAULT (strftime('%s','now') * 1000),
+    chatId       TEXT    NOT NULL DEFAULT '',
+    action       TEXT    NOT NULL DEFAULT '',
+    messageId    TEXT    NOT NULL DEFAULT '',
+    fromTelegram INTEGER NOT NULL DEFAULT 0,
+    userId       TEXT    NOT NULL DEFAULT '',
+    chatTitle    TEXT    NOT NULL DEFAULT '',
+    fullName     TEXT    NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    userId    TEXT NOT NULL UNIQUE,
+    firstName TEXT NOT NULL DEFAULT '',
+    lastName  TEXT NOT NULL DEFAULT '',
+    fullName  TEXT NOT NULL DEFAULT '',
+    userName  TEXT NOT NULL DEFAULT '',
+    role      TEXT NOT NULL DEFAULT 'courier'
+  );
+`);
+
+const toOrder = (row) => {
+  if (!row) return null;
+  return { ...row, fromTelegram: !!row.fromTelegram };
 };
 
-const ordersStatsSchema = new mongoose.Schema({
-  total: {
-    type: Number,
-    required: true,
-    default: 0,
-  },
-  totalMontazh: {
-    type: Number,
-    required: false,
-    default: 0,
-  },
-  month: {
-    type: String,
-    required: false,
-  }
+export const connectDB = async () => {
+  console.log("SQLite connected");
+};
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+export const getStats = () => {
+  return db.prepare("SELECT * FROM orderstats WHERE id = 1").get();
+};
+
+export const incrementStats = db.transaction((field) => {
+  db.prepare(`UPDATE orderstats SET ${field} = ${field} + 1 WHERE id = 1`).run();
+  return db.prepare("SELECT * FROM orderstats WHERE id = 1").get();
 });
 
-export const OrdersStats = mongoose.model(
-  "OrdersStats",
-  ordersStatsSchema,
-  "orderstats",
-);
+export const resetMonthlyStats = (newMonth) => {
+  db.prepare(
+    "UPDATE orderstats SET total = 0, totalMontazh = 0, month = ? WHERE id = 1"
+  ).run(newMonth);
+};
 
-const chatSchema = new mongoose.Schema({
-  chatId: {
-    type: String,
-    required: false,
-    // unique: true,
-  },
-  chatTitle: {
-    type: String,
-    required: false,
-  },
-  topicId: {
-    type: Number,
-    required: false,
-    unique: true,
-  },
-});
-
-export const Chat = mongoose.model("Chat", chatSchema);
-
-const orderSchema = new mongoose.Schema({
-  id: {
-    type: Number,
-    required: true,
-  },
-  status: {
-    type: String,
-    enum: ["pending", "ready"],
-    default: "pending",
-  },
-  text: {
-    type: String,
-    required: true,
-  },
-  firstName: {
-    type: String,
-    required: false,
-  },
-  lastName: {
-    type: String,
-    required: false,
-  },
-  userName: {
-    type: String,
-    required: false,
-  },
-  updatedAt: {
-    type: Date,
-    required: true,
-    default: Date.now,
-  },
-  chatId: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  action: {
-    type: String,
-    default: "",
-  },
-  messageId: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  fromTelegram: {
-    type: Boolean,
-    required: false,
-    default: false,
-  },
-  userId: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  chatTitle: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  fullName: {
-    type: String,
-    required: false,
-    default: "",
-  },
-});
-
-export const Order = mongoose.model("Order", orderSchema);
-
-export const userSchema = new mongoose.Schema({
-  userId: {
-    type: String,
-    required: true,
-    unique: true,
-  },
-  firstName: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  lastName: {
-    type: String,
-    required: false,
-  },
-  fullName: {
-    type: String,
-    required: false,
-    default: "",
-  },
-  userName: {
-    type: String,
-    required: false,
-  },
-  role: {
-    type: String,
-    required: false,
-    default: "courier" || "admin",
-  },
-});
-
-export const User = mongoose.model("User", userSchema);
+// ─── Chats ────────────────────────────────────────────────────────────────────
 
 export const createOrGetChat = async (chatId, chatTitle, topicId) => {
-  if (!chatTitle) {
-    return null;
-  }
+  if (!chatTitle) return null;
   try {
-    // let chat = await Chat.findOne({ chatId });
-    let chat = await Chat.findOne({ topicId });
-    if (!chat) {
-      chat = new Chat({ chatId, chatTitle, topicId });
-      console.log(`new chat ${chat} in db`);
-      await chat.save();
+    const existing = db
+      .prepare("SELECT * FROM chats WHERE topicId = ?")
+      .get(topicId);
+    if (!existing) {
+      db.prepare(
+        "INSERT INTO chats (chatId, chatTitle, topicId) VALUES (?, ?, ?)"
+      ).run(chatId ?? "", chatTitle, topicId ?? null);
+      console.log(`new chat ${chatTitle} in db`);
     }
-    return chat;
+    return db.prepare("SELECT * FROM chats WHERE topicId = ?").get(topicId);
   } catch (error) {
     console.error("Failed to create or get chat", error);
     throw error;
   }
 };
 
-//создание юзера
+export const getAllChats = () => {
+  return db
+    .prepare("SELECT * FROM chats WHERE chatTitle != '' AND chatTitle IS NOT NULL")
+    .all();
+};
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
 export const createOrGetUser = async (userData) => {
   const { userId, firstName, lastName, fullName, userName } = userData;
-
   try {
-    let existngUser = await User.findOne({ userId });
-    if (!existngUser) {
-      existngUser = new User({
+    const existing = db
+      .prepare("SELECT * FROM users WHERE userId = ?")
+      .get(userId);
+
+    if (!existing) {
+      db.prepare(
+        "INSERT INTO users (userId, firstName, lastName, fullName, userName) VALUES (?, ?, ?, ?, ?)"
+      ).run(
         userId,
-        firstName,
-        lastName,
-        fullName,
+        firstName ?? "",
+        lastName ?? "",
+        fullName ?? "",
+        userName ?? ""
+      );
+    } else if (!existing.userName && userName) {
+      db.prepare("UPDATE users SET userName = ? WHERE userId = ?").run(
         userName,
-      });
-      await existngUser.save();
-    } else if (!existngUser.userName && userName) {
-      existngUser.userName = userName;
-      await existngUser.save();
+        userId
+      );
     }
-    return existngUser;
+
+    return db.prepare("SELECT * FROM users WHERE userId = ?").get(userId);
   } catch (error) {
     console.error("Failed to create or get user:", error);
     throw error;
   }
 };
 
-//все юзеры
-export const getAllusers = async () => {
-  try {
-    const users = await User.find();
-    return users;
-  } catch (err) {
-    console.error("Failed to retrieve users in db", err);
-    throw err;
-  }
-};
-
-// Найти пользователя по userId
 export const getUserById = async (userId) => {
   try {
-    const user = await User.findOne({ userId });
-    if (!user) {
-      throw new Error(`User with userId ${userId} not found`);
-    }
+    const user = db
+      .prepare("SELECT * FROM users WHERE userId = ?")
+      .get(userId);
+    if (!user) throw new Error(`User with userId ${userId} not found`);
     return user;
   } catch (err) {
     console.error("Failed to retrieve user by userId in db", err);
@@ -229,36 +152,90 @@ export const getUserById = async (userId) => {
   }
 };
 
+export const findUserById = (userId) => {
+  return db.prepare("SELECT * FROM users WHERE userId = ?").get(userId) ?? null;
+};
+
+export const getAllusers = async () => {
+  try {
+    return db.prepare("SELECT * FROM users").all();
+  } catch (err) {
+    console.error("Failed to retrieve users in db", err);
+    throw err;
+  }
+};
+
+export const updateUser = (userId, data) => {
+  const allowed = ["firstName", "lastName", "fullName", "userName", "role"];
+  const keys = Object.keys(data).filter((k) => allowed.includes(k));
+  if (keys.length === 0) return null;
+  const set = keys.map((k) => `${k} = ?`).join(", ");
+  const values = keys.map((k) => data[k]);
+  db.prepare(`UPDATE users SET ${set} WHERE userId = ?`).run(...values, userId);
+  return db.prepare("SELECT * FROM users WHERE userId = ?").get(userId);
+};
+
+export const deleteUser = (userId) => {
+  const user = db
+    .prepare("SELECT * FROM users WHERE userId = ?")
+    .get(userId);
+  if (!user) return null;
+  db.prepare("DELETE FROM users WHERE userId = ?").run(userId);
+  return user;
+};
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
 export const createOrder = async (orderData) => {
   try {
+    await createOrGetChat(
+      orderData.chatId,
+      orderData.chatTitle,
+      orderData.topicId
+    );
+
+    if (orderData.fromTelegram) {
+      await createOrGetUser(orderData);
+    }
+
     const {
-      chatId,
-      chatTitle,
-      topicId,
-      userId,
-      firstName,
-      lastName,
-      fromTelegram,
-      ...rest
+      id,
+      status = "pending",
+      text = "",
+      firstName = "",
+      lastName = "",
+      userName = "",
+      chatId = "",
+      action = "",
+      messageId = "",
+      fromTelegram = false,
+      userId = "",
+      chatTitle = "",
+      fullName = "",
     } = orderData;
-    await createOrGetChat(chatId, chatTitle, topicId);
-    // const user = await createOrGetUser(userId, firstName, lastName);
-    // if (fromTelegram) await createOrGetUser(userId, firstName, lastName);
-    if (fromTelegram) await createOrGetUser(orderData);
 
-    const newOrder = new Order({
-      ...rest,
-      chatId,
-      userId,
+    db.prepare(
+      `INSERT INTO orders
+        (id, status, text, firstName, lastName, userName, updatedAt, chatId, action, messageId, fromTelegram, userId, chatTitle, fullName)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      status,
+      text,
       firstName,
       lastName,
+      userName,
+      Date.now(),
+      chatId,
+      action,
+      messageId ?? "",
+      fromTelegram ? 1 : 0,
+      userId,
       chatTitle,
-      fromTelegram,
-      ...rest,
-    });
+      fullName
+    );
 
-    await newOrder.save();
-    return newOrder;
+    return toOrder(db.prepare("SELECT * FROM orders WHERE id = ?").get(id));
   } catch (error) {
     console.error("Failed to create order:", error);
     throw error;
@@ -267,27 +244,23 @@ export const createOrder = async (orderData) => {
 
 export const getAllOrders = async () => {
   try {
-    const orders = await Order.find();
-    return orders;
+    return db.prepare("SELECT * FROM orders").all().map(toOrder);
   } catch (err) {
     console.error("Failed to retrieve orders in db", err);
     throw err;
   }
 };
 
-export const updateOrderStatus = async (_id) => {
+export const updateOrderStatus = async (id) => {
   const start = Date.now();
   try {
-    const order = await Order.findOneAndUpdate(
-      { _id: _id },
-      { status: "ready", updatedAt: Date.now() },
-      { new: true },
+    db.prepare(
+      "UPDATE orders SET status = 'ready', updatedAt = ? WHERE id = ?"
+    ).run(Date.now(), id);
+    const order = toOrder(
+      db.prepare("SELECT * FROM orders WHERE id = ?").get(id)
     );
-
-    if (!order) {
-      throw new Error(`Order with id ${_id} not found`);
-    }
-
+    if (!order) throw new Error(`Order with id ${id} not found`);
     console.log("Order updated in db:", order.id);
     console.log(`updateOrderStatus in DB executed in ${Date.now() - start} ms`);
     return order;
@@ -299,12 +272,11 @@ export const updateOrderStatus = async (_id) => {
 
 export const deleteOrder = async (orderId) => {
   try {
-    const order = await Order.findOneAndDelete({ id: orderId });
-
-    if (!order) {
-      throw new Error(`Order with id ${orderId} not found`);
-    }
-
+    const order = toOrder(
+      db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId)
+    );
+    if (!order) throw new Error(`Order with id ${orderId} not found`);
+    db.prepare("DELETE FROM orders WHERE id = ?").run(orderId);
     console.log("Order deleted in db:", order.id);
     return order;
   } catch (err) {
@@ -315,16 +287,13 @@ export const deleteOrder = async (orderId) => {
 
 export const updateOrderText = async (id, newText) => {
   try {
-    const order = await Order.findOneAndUpdate(
-      { id: id },
-      { text: newText, updatedAt: Date.now() },
-      { new: true },
+    db.prepare(
+      "UPDATE orders SET text = ?, updatedAt = ? WHERE id = ?"
+    ).run(newText, Date.now(), id);
+    const order = toOrder(
+      db.prepare("SELECT * FROM orders WHERE id = ?").get(id)
     );
-
-    if (!order) {
-      throw new Error(`Order with id ${id} not found in db`);
-    }
-
+    if (!order) throw new Error(`Order with id ${id} not found in db`);
     console.log("Order text updated in db:", order.id, order.text);
     return order;
   } catch (err) {

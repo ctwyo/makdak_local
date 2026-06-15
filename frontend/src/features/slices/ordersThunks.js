@@ -1,12 +1,10 @@
 import { createAsyncThunk } from "@reduxjs/toolkit";
 import { selectUserId } from "./userSlice";
 
-export const LOCAL_IP = import.meta.env.VITE_LOCAL_IP;
 export const NGROK = import.meta.env.VITE_NGROK;
 const PORT = 3000;
-export const baseUrl = `http://${LOCAL_IP}:${PORT}`;
+export const baseUrl = `http://${window.location.hostname}:${PORT}`;
 // export const baseUrl = `https://${NGROK}`;
-console.log(`baseUrl: ${baseUrl}`);
 
 export const sendMessgageToTelegram = async (topicId, chatId, message) => {
   console.log(topicId, chatId, message);

@@ -4,7 +4,7 @@ import { Layout } from "./components/Layout/Layout";
 import MakDakPage from "./pages/MakDakPage/MakDakPage";
 import OrdersPage from "./pages/OrdersPage/OrdersPage";
 import { useDispatch, useSelector } from "react-redux";
-import { fetchOrders, LOCAL_IP, NGROK } from "./features/slices/ordersThunks";
+import { fetchOrders, NGROK } from "./features/slices/ordersThunks";
 import AppRoutes from "./routes";
 import { Navigate, Route, useNavigate } from "react-router";
 import {
@@ -41,8 +41,8 @@ function App() {
     let socket;
 
     const connectSocket = () => {
-      socket = new WebSocket(`ws://${LOCAL_IP}:3000`);
-      // socket = new WebSocket(`wss://${LOCAL_IP}:3000`);
+      socket = new WebSocket(`ws://${window.location.hostname}:3000`);
+      // socket = new WebSocket(`wss://${window.location.hostname}:3000`);
       // socket = new WebSocket(`wss://${NGROK}`);
       console.log("socket open");
 
