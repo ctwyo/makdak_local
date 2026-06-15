@@ -11,7 +11,7 @@ dotenv.config();
 // Конфиг
 // ===============================
 const PORT = 3000;
-const SERVER_URL = `http://localhost:${PORT}`;
+const SERVER_URL = `http://127.0.0.1:${PORT}`;
 const TOKEN = process.env.BOT_TOKEN;
 
 const SPREADSHEET_ID = "1eCC7F_KBfpyvZOj3DWiRmAZ1hlv8pw5vLxFKlsIiXbk";
